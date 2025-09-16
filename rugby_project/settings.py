@@ -32,12 +32,14 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'player',
 ]
 
 MIDDLEWARE = [
@@ -75,8 +77,12 @@ WSGI_APPLICATION = 'rugby_project.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',   # Le decimos que use el motor de PostgreSQL
+        'NAME': 'rugby_player_db',                   # El nombre EXACTO de la base de datos que creaste
+        'USER': 'postgres',                          # Tu usuario de PostgreSQL (suele ser 'postgres')
+        'PASSWORD': '141304',   # La contraseña que pusiste al instalar PostgreSQL
+        'HOST': 'localhost',                         # Como la base de datos está en tu máquina, es 'localhost'
+        'PORT': '5432',                              # El puerto por defecto de PostgreSQL
     }
 }
 
