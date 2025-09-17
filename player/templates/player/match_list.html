@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Seleccionar Partido{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Partidos Cargados</h1>
+    <a href="{% url 'player:upload_analysis' %}" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">
+        + Cargar Nuevo Análisis
+    </a>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+    {% for match in matches %}
+    <a href="{% url 'player:play_match' pk=match.pk %}" class="block max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
+        <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{{ match.home_team }} vs. {{ match.away_team }}</h5>
+        <p class="font-normal text-sm text-gray-500 dark:text-gray-400">Cargado: {{ match.created_at|date:"d M Y" }}</p>
+    </a>
+    {% empty %}
+    <p class="col-span-full text-center text-gray-500 dark:text-gray-400">No hay partidos cargados todavía. ¡Sube el primero!</p>
+    {% endfor %}
+</div>
+
+{% if is_paginated %}
+<nav class="flex items-center justify-between pt-8" aria-label="Page navigation">
+    <span class="text-sm font-normal text-gray-500 dark:text-gray-400">Mostrando <span class="font-semibold text-gray-900 dark:text-white">{{ page_obj.start_index }}-{{ page_obj.end_index }}</span> de <span class="font-semibold text-gray-900 dark:text-white">{{ page_obj.paginator.count }}</span></span>
+    <ul class="inline-flex -space-x-px rtl:space-x-reverse text-sm h-8">
+        {% if page_obj.has_previous %}
+        <li>
+            <a href="?page={{ page_obj.previous_page_number }}" class="flex items-center justify-center px-3 h-8 ms-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-s-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Anterior</a>
+        </li>
+        {% endif %}
+        {% if page_obj.has_next %}
+        <li>
+            <a href="?page={{ page_obj.next_page_number }}" class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 bg-white border border-gray-300 rounded-e-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Siguiente</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% endblock %}

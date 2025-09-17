@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Reproductor: {{ match.home_team }} vs {{ match.away_team }}{% endblock %}
+
+{% block content %}
+<style>
+    /* Esta regla busca el iframe que YouTube crea dentro de nuestro div #player */
+    /* y lo obliga a ocupar el 100% del espacio de su contenedor. */
+    #player iframe {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+</style>
+
+<div>
+    <h1 class="text-3xl font-bold mb-6 text-gray-900 dark:text-white">{{ match.home_team }} vs. {{ match.away_team }}</h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        
+        <div class="lg:col-span-1">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Filtros</h2>
+                <form method="GET" action="" class="space-y-4">
+                    <select name="evento" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+                        <option value="">-- Por Evento --</option>
+                        {% for option in evento_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.evento %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+                    </select>
+                    <select name="equipo" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+                        <option value="">-- Por Equipo --</option>
+                        {% for option in equipo_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.equipo %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+                    </select>
+                    <select name="zona_inicio" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+                        <option value="">-- Por Zona de Inicio --</option>
+                        {% for option in zona_inicio_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.zona_inicio %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+                    </select>
+                    <select name="zona_fin" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+                        <option value="">-- Por Zona de Fin --</option>
+                        {% for option in zona_fin_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.zona_fin %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+                    </select>
+                    <select name="inicia" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+                        <option value="">-- Por Quién Inicia --</option>
+                        {% for option in inicia_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.inicia %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+                    </select>
+
+                    <div class="flex space-x-2">
+                        <button type="submit" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">Filtrar</button>
+                        <a href="{% url 'player:play_match' pk=match.pk %}" class="w-full text-center text-gray-900 bg-white border border-gray-300 hover:bg-gray-100 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700">Limpiar</a>
+                    </div>
+                </form>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Lista de Jugadas</h2>
+                <button id="play-selection-btn" class="w-full mb-4 text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    ▶️ Reproducir Selección
+                </button>
+                
+                <div id="playlist-container" class="space-y-4">
+                    {% for play in page_obj %}
+                    <div class="flex items-center p-3 text-base font-bold text-gray-900 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-white">
+                        <input id="play-{{ play.id }}" type="checkbox" value="{{ play.id }}" data-start="{{ play.inicio }}" data-end="{{ play.fin }}" class="play-checkbox w-4 h-4 text-blue-600 rounded">
+                        <label for="play-{{ play.id }}" class="ms-3 flex-1">
+                            <span class="font-semibold">{{ play.evento }}</span>
+                            <span class="block text-xs font-normal text-gray-500 dark:text-gray-400">{{ play.inicia }} | {{ play.equipo }}</span>
+                        </label>
+                    </div>
+                    {% empty %}
+                    <p class="text-gray-500 dark:text-gray-400">No hay jugadas que coincidan con los filtros.</p>
+                    {% endfor %}
+                </div>
+
+                <nav class="flex items-center justify-between pt-4" aria-label="Table navigation">
+                    <span class="text-sm font-normal text-gray-500 dark:text-gray-400">Página <span class="font-semibold text-gray-900 dark:text-white">{{ page_obj.number }}</span> de <span class="font-semibold text-gray-900 dark:text-white">{{ page_obj.paginator.num_pages }}</span></span>
+                    <ul class="inline-flex -space-x-px rtl:space-x-reverse text-sm h-8">
+                        {% if page_obj.has_previous %}
+                        <li>
+                            <a href="?page={{ page_obj.previous_page_number }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="flex items-center justify-center px-3 h-8 ms-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-s-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Anterior</a>
+                        </li>
+                        {% endif %}
+                        {% if page_obj.has_next %}
+                        <li>
+                            <a href="?page={{ page_obj.next_page_number }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 bg-white border border-gray-300 rounded-e-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Siguiente</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </div>
+
+        <div class="lg:col-span-3" id="video-container">
+            <div class="video-container bg-white dark:bg-gray-800 rounded-lg shadow-md aspect-w-16 aspect-h-9 sticky top-8 relative">
+                <div id="player" class="w-full h-full bg-black rounded-lg"></div>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+<script>
+    // 1. Carga la API IFrame Player de YouTube de forma asíncrona.
+    var tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    // 2. Variables globales para manejar el reproductor y la lista de reproducción.
+    let player;
+    let playlist = [];
+    let currentPlayIndex = 0;
+    let timeChecker; // Variable para guardar el intervalo que revisa el tiempo
+
+    // 3. Esta función se ejecuta automáticamente cuando la API de YouTube está lista.
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+            height: '100%',
+            width: '100%',
+            videoId: '{{ match.video_id }}', // ID del video que nos pasa Django
+            playerVars: {
+                'playsinline': 1,
+                'modestbranding': 1,
+                'rel': 0, // No mostrar videos relacionados al final
+            },
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+
+    // 4. La API llama a esta función cuando el reproductor está listo.
+    function onPlayerReady(event) {
+        // Habilitamos el botón de "Reproducir Selección"
+        document.getElementById('play-selection-btn').disabled = false;
+    }
+
+    // 5. La API llama a esta función cuando el estado del reproductor cambia (play, pausa, etc.).
+    function onPlayerStateChange(event) {
+        // Si el video se está reproduciendo, iniciamos el chequeo de tiempo.
+        if (event.data == YT.PlayerState.PLAYING) {
+            checkTime();
+        } else {
+            // Si el video se pausa o termina, limpiamos el intervalo para no gastar recursos.
+            clearInterval(timeChecker);
+        }
+    }
+
+    // 6. Esta función revisa continuamente si el video llegó al final de la jugada actual.
+    function checkTime() {
+        clearInterval(timeChecker); // Limpiamos cualquier intervalo anterior
+        timeChecker = setInterval(() => {
+            // Nos aseguramos de que haya una jugada actual en la lista
+            if (playlist.length > 0 && currentPlayIndex < playlist.length) {
+                if (player.getCurrentTime() >= playlist[currentPlayIndex].end) {
+                    playNextVideo();
+                }
+            } else {
+                clearInterval(timeChecker);
+            }
+        }, 250); // Revisa cada 250 milisegundos
+    }
+
+    // 7. Lógica principal que se activa al hacer clic en el botón.
+    document.getElementById('play-selection-btn').addEventListener('click', () => {
+        // Buscamos todos los checkboxes que estén seleccionados
+        const selectedPlays = document.querySelectorAll('.play-checkbox:checked');
+        
+        // Reiniciamos la lista de reproducción
+        playlist = [];
+        
+        // Llenamos la lista con los datos de las jugadas seleccionadas
+        selectedPlays.forEach(checkbox => {
+            playlist.push({
+                start: parseFloat(checkbox.dataset.start),
+                end: parseFloat(checkbox.dataset.end)
+            });
+        });
+
+        // Si hay al menos una jugada, empezamos a reproducir
+        if (playlist.length > 0) {
+            currentPlayIndex = 0;
+            startCurrentVideo();
+        }
+    });
+
+    // 8. Función para iniciar la reproducción de la jugada actual en la lista.
+    function startCurrentVideo() {
+        const currentPlay = playlist[currentPlayIndex];
+        player.seekTo(currentPlay.start, true);
+        player.playVideo();
+    }
+
+    // 9. Función para pasar a la siguiente jugada.
+    function playNextVideo() {
+        clearInterval(timeChecker); // Detenemos el chequeo de tiempo
+        currentPlayIndex++;
+        
+        // Si todavía hay jugadas en la lista, reproducimos la siguiente.
+        if (currentPlayIndex < playlist.length) {
+            startCurrentVideo();
+        } else {
+            // Si no hay más jugadas, pausamos el video.
+            player.pauseVideo();
+        }
+    }
+</script>
+{% endblock %}
