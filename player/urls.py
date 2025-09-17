@@ -1,8 +1,13 @@
 # player/urls.py
 
 from django.urls import path
-from .views import AnalysisUploadView, MatchPlayerView, MatchListView
-
+from .views import (
+    AnalysisUploadView, 
+    MatchPlayerView, 
+    MatchListView,
+    UserLoginView, 
+    UserLogoutView
+)
 app_name = 'player'
 
 urlpatterns = [
@@ -14,4 +19,7 @@ urlpatterns = [
     
     # La página del reproductor se mantiene igual
     path('match/<int:pk>/', MatchPlayerView.as_view(), name='play_match'),
+    
+    path('login/', UserLoginView.as_view(), name='login'),
+    path('logout/', UserLogoutView.as_view(), name='logout'),
 ]

@@ -2,12 +2,14 @@
 import csv
 import io
 from urllib.parse import urlparse, parse_qs
-
 from django.shortcuts import redirect
-from django.views.generic import FormView, DetailView, ListView
+from django.contrib.auth import logout
+from django.views.generic import FormView, DetailView, ListView,View
 from .forms import AnalysisUploadForm
 from .models import Match, Play
 from django.core.paginator import Paginator
+from django.contrib.auth.views import LoginView, LogoutView
+from django.urls import reverse_lazy
 
 # --- Función Auxiliar para la URL de YouTube (la dejamos como está) ---
 def get_youtube_video_id(url):
@@ -49,6 +51,23 @@ def parse_time_to_seconds(time_str):
     except (ValueError, IndexError):
         # Si el formato es incorrecto, devolvemos 0.0 para no romper la carga
         return 0.0
+
+
+# --- VISTAS DE AUTENTICACIÓN ---
+class UserLoginView(LoginView):
+    template_name = 'player/login.html'
+    redirect_authenticated_user = True
+    
+    def get_success_url(self):
+        return reverse_lazy('player:match_list')
+
+class UserLogoutView(View):
+    def get(self, request, *args, **kwargs):
+        # Cerramos la sesión del usuario
+        logout(request)
+        # Redirigimos a la página de login
+        return redirect('player:login')
+
 
 # --- Vistas ---
 class AnalysisUploadView(FormView):

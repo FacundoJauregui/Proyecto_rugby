@@ -8,18 +8,28 @@ y lo obliga a ocupar el 100% del espacio de su contenedor.
     width: 100%;
     height: 100%;
     aspect-ratio: 16 / 9; 
-    max-height: 900px; /*Opcional, para mantener formato */
+    max-height: 1200px; /*Opcional, para mantener formato */
 }
-
 .video-container {
     width: 100%;
-    height: 80%;
+    height: 100%;
     display: flex;
     flex-grow: 1;
+    max-height: 800px;
 }
 
 @media (min-width: 1024px) {
   #video-container {
     width: 72vw !important;
   }
+}
+
+.is-playing {
+  background-color: #3b82f6 !important; /* Azul de Tailwind */
+  color: white !important;
+}
+
+/* También cambiamos el color del texto secundario */
+.is-playing label span:last-child {
+  color: #e5e7eb !important; /* Gris claro */
 }

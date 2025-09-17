@@ -1,5 +1,6 @@
 # player/models.py
 from django.db import models
+from django.contrib.auth.models import User 
 
 class Match(models.Model):
     # Quitamos 'title' y agregamos los equipos
@@ -46,3 +47,29 @@ class Play(models.Model):
     class Meta:
         verbose_name = "Jugada"
         verbose_name_plural = "Jugadas"
+        
+class Team(models.Model):
+    name = models.CharField(max_length=100, unique=True, verbose_name="Nombre del Equipo")
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Equipo"
+        verbose_name_plural = "Equipos"
+        
+class Profile(models.Model):
+    class Role(models.TextChoices):
+        ENTRENADOR = 'COACH', 'Entrenador'
+        JUGADOR = 'PLAYER', 'Jugador'
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Equipo")
+    role = models.CharField(max_length=10, choices=Role.choices, default=Role.ENTRENADOR, verbose_name="Rol")
+
+    def __str__(self):
+        return f"Perfil de {self.user.username}"
+
+    class Meta:
+        verbose_name = "Perfil"
+        verbose_name_plural = "Perfiles"
