@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Bienvenido | SportFrame{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+  <section class="dark:bg-gray-800 rounded-xl overflow-hidden  border-gray-200 dark:border-gray-700/60 shadow p-8 text-center">
+    <div class="mx-auto mb-6 w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center">
+      <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 5v14l11-7L8 5z" fill="currentColor"/>
+      </svg>
+    </div>
+    <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">Llevá tu análisis al próximo nivel</h1>
+    <p class="text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
+      Centralizá tus videos, marcá jugadas clave y compartí insights con tu equipo. Ingresá para comenzar.
+    </p>
+    <div class="flex items-center justify-center gap-4">
+      <a href="{% url 'player:login' %}" class="inline-flex items-center justify-center px-6 py-3 text-base font-semibold text-white rounded-lg bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        Iniciar sesión
+      </a>
+      <a href="#features" class="inline-flex items-center justify-center px-6 py-3 text-base font-semibold rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">
+        Conocer más
+      </a>
+    </div>
+  </section>
+
+  <!-- Tarjetas con margen superior e inferior -->
+  <section id="features" class="my-8 md:my-12 grid md:grid-cols-3 gap-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
+      <h3 class="font-semibold text-lg mb-2">Subí y analizá partidos</h3>
+      <p class="text-sm text-gray-600 dark:text-gray-300">Cargá el video y el CSV para generar una línea de tiempo de jugadas precisa.</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
+      <h3 class="font-semibold text-lg mb-2">Filtrá lo importante</h3>
+      <p class="text-sm text-gray-600 dark:text-gray-300">Encontrá eventos por equipo, zonas y tipo de jugada en segundos.</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
+      <h3 class="font-semibold text-lg mb-2">Todo en un solo lugar</h3>
+      <p class="text-sm text-gray-600 dark:text-gray-300">Centralizá la información y compartila con tu staff.</p>
+    </div>
+  </section>
+
+  <section class="mt-10 text-center">
+    <a href="{% url 'player:login' %}" class="inline-flex items-center justify-center px-8 py-3 text-base font-semibold text-white rounded-lg bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+      Empezar ahora
+    </a>
+  </section>
+</div>
+{% endblock %}

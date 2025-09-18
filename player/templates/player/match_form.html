@@ -21,6 +21,11 @@
         </div>
         
         <div>
+            <label for="{{ form.match_date.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.match_date.label }}</label>
+            <input type="date" name="{{ form.match_date.name }}" id="{{ form.match_date.id_for_label }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" required>
+        </div>
+        
+        <div>
             <label for="{{ form.youtube_url.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.youtube_url.label }}</label>
             <input type="url" name="{{ form.youtube_url.name }}" id="{{ form.youtube_url.id_for_label }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="https://www.youtube.com/watch?v=..." required>
         </div>

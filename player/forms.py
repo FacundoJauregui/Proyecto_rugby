@@ -14,6 +14,13 @@ class AnalysisUploadForm(forms.Form):
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
     
+    # Nueva fecha del partido
+    match_date = forms.DateField(
+        label="Fecha del Partido",
+        required=True,
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
+    
     # Los campos de siempre
     youtube_url = forms.URLField(
         label="URL del Video de YouTube",

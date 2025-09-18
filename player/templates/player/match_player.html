@@ -25,8 +25,12 @@
                 <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Filtros</h2>
                 <form method="GET" action="" class="space-y-4">
                     <select name="equipo" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
-                        <option value="">-- Por Equipo --</option>
+                        <option value="" {% if not filter_params.equipo %}selected{% endif %}>-- Por Equipo --</option>
                         {% for option in equipo_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.equipo %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+                    </select>
+                    <select name="situacion" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+                        <option value="">-- Situación --</option>
+                        {% for option in situacion_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.situacion %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
                     </select>
                     <select name="zona_inicio" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
                         <option value="">-- Por Zona de Inicio --</option>
@@ -35,10 +39,6 @@
                     <select name="zona_fin" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
                         <option value="">-- Por Zona de Fin --</option>
                         {% for option in zona_fin_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.zona_fin %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
-                    </select>
-                    <select name="inicia" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
-                        <option value="">-- Jugada Inicial --</option>
-                        {% for option in inicia_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.inicia %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
                     </select>
 
                     <div class="flex space-x-2">
@@ -65,7 +65,7 @@
                         
                             <input id="play-{{ play.id }}" type="checkbox" value="{{ play.id }}" data-start="{{ play.inicio }}" data-end="{{ play.fin }}" class="play-checkbox w-4 h-4 text-blue-600 rounded">
                             <label for="play-{{ play.id }}" class="ms-3 flex-1">
-                                <span class="font-semibold">{{ play.inicia }}</span>
+                                <span class="font-semibold">{{ play.situacion }}</span>
                                 <span class="block text-xs font-normal text-gray-500 dark:text-gray-400">{{ play.equipo }}</span>
                             </label>
 

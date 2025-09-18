@@ -6,20 +6,25 @@ from .views import (
     MatchPlayerView, 
     MatchListView,
     UserLoginView, 
-    UserLogoutView
+    UserLogoutView,
+    WelcomeView,
 )
 app_name = 'player'
 
 urlpatterns = [
-    # La página de inicio ahora es la lista de partidos
-    path('', MatchListView.as_view(), name='match_list'),
+    # Home público de bienvenida
+    path('', WelcomeView.as_view(), name='welcome'),
+
+    # Lista de partidos (requiere login)
+    path('matches/', MatchListView.as_view(), name='match_list'),
     
-    # La página para subir un análisis ahora tiene su propia URL
+    # Carga de análisis (staff)
     path('upload/', AnalysisUploadView.as_view(), name='upload_analysis'),
     
-    # La página del reproductor se mantiene igual
+    # Reproductor
     path('match/<int:pk>/', MatchPlayerView.as_view(), name='play_match'),
     
+    # Auth
     path('login/', UserLoginView.as_view(), name='login'),
     path('logout/', UserLogoutView.as_view(), name='logout'),
 ]

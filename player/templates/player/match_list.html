@@ -4,22 +4,111 @@
 
 {% block content %}
 <div class="flex justify-between items-center mb-6">
-    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Partidos Cargados</h1>
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Partidos Cargados</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Explorá los partidos agrupados por fecha de juego (sábados).</p>
+    </div>
     <a href="{% url 'player:upload_analysis' %}" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">
         + Cargar Nuevo Análisis
     </a>
 </div>
 
-<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-    {% for match in matches %}
-    <a href="{% url 'player:play_match' pk=match.pk %}" class="block max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
-        <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{{ match.home_team }} vs. {{ match.away_team }}</h5>
-        <p class="font-normal text-sm text-gray-500 dark:text-gray-400">Cargado: {{ match.created_at|date:"d M Y" }}</p>
-    </a>
-    {% empty %}
-    <p class="col-span-full text-center text-gray-500 dark:text-gray-400">No hay partidos cargados todavía. ¡Sube el primero!</p>
-    {% endfor %}
+{% if user.is_staff %}
+<div class="mb-4">
+    <form id="staff-sort-form" method="GET" action="{% url 'player:match_list' %}" class="flex flex-wrap items-end gap-4">
+        <div>
+            <label for="sort-by" class="block text-sm font-medium text-gray-900 dark:text-white">Ordenar por</label>
+            <select id="sort-by" name="sort" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="-match_date" {% if current_sort == '-match_date' %}selected{% endif %}>Fecha de partido (más recientes primero)</option>
+                <option value="match_date" {% if current_sort == 'match_date' %}selected{% endif %}>Fecha de partido (más antiguas primero)</option>
+                <option value="-created_at" {% if current_sort == '-created_at' %}selected{% endif %}>Cargado (más nuevos primero)</option>
+                <option value="created_at" {% if current_sort == 'created_at' %}selected{% endif %}>Cargado (más viejos primero)</option>
+                <option value="home_team" {% if current_sort == 'home_team' %}selected{% endif %}>Equipo Local (A-Z)</option>
+                <option value="away_team" {% if current_sort == 'away_team' %}selected{% endif %}>Equipo Visitante (A-Z)</option>
+            </select>
+        </div>
+
+        <div class="grow min-w-[220px]">
+            <label for="q" class="block text-sm font-medium text-gray-900 dark:text-white">Buscar equipo</label>
+            <input type="text" id="q" name="q" value="{{ current_q }}" placeholder="Nombre del equipo" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+
+        <div>
+            <label for="date_from" class="block text-sm font-medium text-gray-900 dark:text-white">Desde</label>
+            <input type="date" id="date_from" name="date_from" value="{{ current_date_from }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+        <div>
+            <label for="date_to" class="block text-sm font-medium text-gray-900 dark:text-white">Hasta</label>
+            <input type="date" id="date_to" name="date_to" value="{{ current_date_to }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+
+        <button type="submit" class="p-2.5 h-[42px] text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800">Aplicar</button>
+        {% if current_q or current_date_from or current_date_to %}
+        <a href="{% url 'player:match_list' %}?sort={{ current_sort }}" class="p-2.5 h-[42px] text-sm font-medium text-blue-700 bg-white border border-blue-700 rounded-lg hover:bg-blue-50">Limpiar</a>
+        {% endif %}
+    </form>
 </div>
+{% else %}
+<div class="mb-4">
+    <form id="user-filter-form" method="GET" action="{% url 'player:match_list' %}" class="flex flex-wrap items-end gap-4">
+        <div>
+            <label for="filter" class="block text-sm font-medium text-gray-900 dark:text-white">Ver</label>
+            <select id="filter" name="filter" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="own" {% if current_filter == 'own' %}selected{% endif %}>Mis partidos</option>
+                <option value="rivals" {% if current_filter == 'rivals' %}selected{% endif %}>Rivales</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="sort-user" class="block text-sm font-medium text-gray-900 dark:text-white">Ordenar por</label>
+            <select id="sort-user" name="sort" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="-match_date" {% if current_sort == '-match_date' %}selected{% endif %}>Fecha de partido (más recientes primero)</option>
+                <option value="match_date" {% if current_sort == 'match_date' %}selected{% endif %}>Fecha de partido (más antiguas primero)</option>
+            </select>
+        </div>
+
+        <div class="grow min-w-[220px]">
+            <label for="q_user" class="block text-sm font-medium text-gray-900 dark:text-white">Buscar equipo</label>
+            <input type="text" id="q_user" name="q" value="{{ current_q }}" placeholder="Nombre del equipo" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+        <div>
+            <label for="date_from_user" class="block text-sm font-medium text-gray-900 dark:text-white">Desde</label>
+            <input type="date" id="date_from_user" name="date_from" value="{{ current_date_from }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+        <div>
+            <label for="date_to_user" class="block text-sm font-medium text-gray-900 dark:text-white">Hasta</label>
+            <input type="date" id="date_to_user" name="date_to" value="{{ current_date_to }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+        </div>
+        <button type="submit" class="p-2.5 h-[42px] text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800">Buscar</button>
+        {% if current_q or current_date_from or current_date_to or current_filter != 'own' or current_sort != '-match_date' %}
+        <a href="{% url 'player:match_list' %}" class="p-2.5 h-[42px] text-sm font-medium text-blue-700 bg-white border border-blue-700 rounded-lg hover:bg-blue-50">Limpiar</a>
+        {% endif %}
+    </form>
+</div>
+{% endif %}
+
+{# Agrupar por fecha del partido #}
+{% regroup matches by match_date as matches_by_date %}
+
+{% if matches_by_date %}
+  {% for group in matches_by_date %}
+    {% if group.grouper %}
+      <h3 class="mt-8 mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">{{ group.grouper|date:"l d \\d\\e F, Y" }}</h3>
+    {% else %}
+      <h3 class="mt-8 mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Sin fecha de partido</h3>
+    {% endif %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {% for match in group.list %}
+        <a href="{% url 'player:play_match' pk=match.id %}" class="block max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
+            <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{{ match.home_team }} vs. {{ match.away_team }}{% if match.match_result %} ({{ match.match_result }}){% endif %}</h5>
+            <p class="font-normal text-sm text-gray-500 dark:text-gray-400">Cargado: {{ match.created_at|date:"d M Y" }}</p>
+        </a>
+      {% endfor %}
+    </div>
+  {% endfor %}
+{% else %}
+  <p class="col-span-full text-center text-gray-500 dark:text-gray-400">No hay partidos cargados todavía. ¡Sube el primero!</p>
+{% endif %}
 
 {% if is_paginated %}
 <nav class="flex items-center justify-between pt-8" aria-label="Page navigation">
@@ -27,16 +116,39 @@
     <ul class="inline-flex -space-x-px rtl:space-x-reverse text-sm h-8">
         {% if page_obj.has_previous %}
         <li>
-            <a href="?page={{ page_obj.previous_page_number }}" class="flex items-center justify-center px-3 h-8 ms-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-s-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Anterior</a>
+            <a href="?page={{ page_obj.previous_page_number }}{% if querystring %}&{{ querystring }}{% endif %}" class="flex items-center justify-center px-3 h-8 ms-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-s-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Anterior</a>
         </li>
         {% endif %}
         {% if page_obj.has_next %}
         <li>
-            <a href="?page={{ page_obj.next_page_number }}" class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 bg-white border border-gray-300 rounded-e-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Siguiente</a>
+            <a href="?page={{ page_obj.next_page_number }}{% if querystring %}&{{ querystring }}{% endif %}" class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 bg-white border border-gray-300 rounded-e-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Siguiente</a>
         </li>
         {% endif %}
     </ul>
 </nav>
 {% endif %}
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // No staff: auto-submit en selects
+    const userForm = document.getElementById('user-filter-form');
+    const filterSelect = document.getElementById('filter');
+    const sortUserSelect = document.getElementById('sort-user');
+    function submitForm(form) {
+      if (!form) return;
+      form.requestSubmit ? form.requestSubmit() : form.submit();
+    }
+    if (userForm) {
+      if (filterSelect) filterSelect.addEventListener('change', () => submitForm(userForm));
+      if (sortUserSelect) sortUserSelect.addEventListener('change', () => submitForm(userForm));
+    }
+
+    // Staff: auto-submit al cambiar ordenamiento
+    const staffSort = document.getElementById('sort-by');
+    if (staffSort && staffSort.form) {
+      staffSort.addEventListener('change', () => submitForm(staffSort.form));
+    }
+  });
+</script>
 
 {% endblock %}

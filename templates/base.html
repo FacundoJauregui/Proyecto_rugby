@@ -23,7 +23,7 @@
                            <path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"></path>
                         </svg>
                     </button>
-                    <a href="{% url 'player:match_list' %}" class="flex ms-2 md:me-24">
+                    <a href="{% if user.is_authenticated %}{% url 'player:match_list' %}{% else %}{% url 'player:welcome' %}{% endif %}" class="flex ms-2 md:me-24">
                         <img src="{% static 'images/icons8-emoji-boton-reproducir-48.png' %}" class="h-8 me-3" alt="Playbook Rugby Logo" />
                         <span class="self-center text-xl font-semibold sm:text-2xl whitespace-nowrap dark:text-white">SportFrame</span>
                     </a>
@@ -35,27 +35,44 @@
     <aside id="logo-sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen pt-20 transition-transform -translate-x-full bg-white border-r border-gray-200 dark:bg-gray-800 dark:border-gray-700" aria-label="Sidebar">
         
         <div class="h-full px-3 pb-4 overflow-y-auto bg-white dark:bg-gray-800 flex flex-col justify-between">
-            {% if user.is_staff %}
-            <ul class="space-y-2 font-medium">
-
-                <li>
-                    <a href="{% url 'player:match_list' %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M19 4H5C4.44772 4 4 4.44772 4 5V19C4 19.5523 4.44772 20 5 20H19C19.5523 20 20 19.5523 20 19V5C20 4.44772 19.5523 4 19 4ZM19 4L15 8M20 8H4M5 8L9 4M10 8L14 4M10 11V17L14 14L10 11Z" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        <span class="ms-3">Mis Partidos</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{% url 'player:upload_analysis' %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 11V16M12 16L14 14M12 16L10 14M3 6V7C3 7.55228 3.44772 8 4 8H20C20.5523 8 21 7.55228 21 7V6C21 5.44772 20.5523 5 20 5H4C3.44772 5 3 5.44772 3 6ZM5 8V18C5 18.5523 5.44772 19 6 19H18C18.5523 19 19 18.5523 19 18V8H5Z" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        <span class="flex-1 ms-3 whitespace-nowrap">Cargar Análisis</span>
-                    </a>
-                </li>
-            </ul>
-            {% else %}
+            
+            {% if user.is_authenticated %}
+                {% if user.is_staff %}
+                <ul class="space-y-2 font-medium">
+                    <li>
+                        <a href="{% url 'player:match_list' %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 4H5C4.44772 4 4 4.44772 4 5V19C4 19.5523 4.44772 20 5 20H19C19.5523 20 20 19.5523 20 19V5C20 4.44772 19.5523 4 19 4ZM19 4L15 8M20 8H4M5 8L9 4M10 8L14 4M10 11V17L14 14L10 11Z" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="ms-3">Mis Partidos</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'player:upload_analysis' %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 11V16M12 16L14 14M12 16L10 14M3 6V7C3 7.55228 3.44772 8 4 8H20C20.5523 8 21 7.55228 21 7V6C21 5.44772 20.5523 5 20 5H4C3.44772 5 3 5.44772 3 6ZM5 8V18C5 18.5523 5.44772 19 6 19H18C18.5523 19 19 18.5523 19 18V8H5Z" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="flex-1 ms-3 whitespace-nowrap">Cargar Video</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 15V19M9 13V19M15 15V19M21 13V19M3 11L9 6L15 11L20.5 5.5" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="flex-1 ms-3 whitespace-nowrap">Estadisticas</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 15L4 17C4 18.6569 5.34315 20 7 20L17 20C18.6569 20 20 18.6569 20 17V15M12 16L12 4M12 16L8 12M12 16L16 12" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="flex-1 ms-3 whitespace-nowrap">Cargar Estadisticas</span>
+                        </a>
+                    </li>
+                </ul>
+                {% else %}
                 <li>
                     <button type="button" class="flex items-center w-full p-2 text-base text-gray-900 transition duration-75 rounded-lg group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700" aria-controls="dropdown-matches" data-collapse-toggle="dropdown-matches">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -75,6 +92,50 @@
                         </li>
                     </ul>
                 </li>
+                <li>
+                    <a href="" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 15V19M9 13V19M15 15V19M21 13V19M3 11L9 6L15 11L20.5 5.5" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="flex-1 ms-3 whitespace-nowrap">Estadisticas</span>
+                    </a>
+                </li>
+                {% endif %}
+            {% else %}
+            <ul class="space-y-2 font-medium">
+                <li>
+                    <div class="flex items-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-400 cursor-not-allowed select-none pointer-events-none" aria-disabled="true" title="Inicia sesión para acceder">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19 4H5C4.44772 4 4 4.44772 4 5V19C4 19.5523 4.44772 20 5 20H19C19.5523 20 20 19.5523 20 19V5C20 4.44772 19.5523 4 19 4ZM19 4L15 8M20 8H4M5 8L9 4M10 8L14 4M10 11V17L14 14L10 11Z" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="ms-3">Mis Partidos</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="flex items-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-400 cursor-not-allowed select-none pointer-events-none" aria-disabled="true" title="Inicia sesión para acceder">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 11V16M12 16L14 14M12 16L10 14M3 6V7C3 7.55228 3.44772 8 4 8H20C20.5523 8 21 7.55228 21 7V6C21 5.44772 20.5523 5 20 5H4C3.44772 5 3 5.44772 3 6ZM5 8V18C5 18.5523 5.44772 19 6 19H18C18.5523 19 19 18.5523 19 18V8H5Z" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="flex-1 ms-3 whitespace-nowrap">Cargar Video</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="flex items-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-400 cursor-not-allowed select-none pointer-events-none" aria-disabled="true" title="Inicia sesión para acceder">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 15V19M9 13V19M15 15V19M21 13V19M3 11L9 6L15 11L20.5 5.5" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="flex-1 ms-3 whitespace-nowrap">Estadisticas</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="flex items-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-400 cursor-not-allowed select-none pointer-events-none" aria-disabled="true" title="Inicia sesión para acceder">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 15L4 17C4 18.6569 5.34315 20 7 20L17 20C18.6569 20 20 18.6569 20 17V15M12 16L12 4M12 16L8 12M12 16L16 12" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="flex-1 ms-3 whitespace-nowrap">Cargar Estadisticas</span>
+                    </div>
+                </li>
+            </ul>
             {% endif %}
 
             <ul class="space-y-2 font-medium">
@@ -102,6 +163,19 @@
 
     <div class="p-4">
         <div class="p-4 mt-14">
+            {% if messages %}
+            <div class="space-y-2 mb-4">
+                {% for message in messages %}
+                <div class="p-3 rounded-lg text-sm 
+                    {% if message.tags == 'error' %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300
+                    {% elif message.tags == 'warning' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300
+                    {% elif message.tags == 'success' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300
+                    {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
              {% block content %}
              {% endblock %}
         </div>
