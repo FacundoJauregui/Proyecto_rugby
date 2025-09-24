@@ -53,6 +53,10 @@
                 <button id="play-selection-btn" class="w-full mb-4 text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                     ▶️ Reproducir Selección
                 </button>
+                <div class="flex gap-2 mb-3">
+                    <button id="export-filters-btn" type="button" class="flex-1 text-gray-900 bg-white border border-gray-300 focus:outline-none hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:border-gray-600 dark:focus:ring-gray-700">⬇️ Exportar filtradas</button>
+                    <button id="export-selected-btn" type="button" disabled class="flex-1 text-gray-900 bg-white border border-gray-300 focus:outline-none hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:border-gray-600 dark:focus:ring-gray-700">⬇️ Exportar seleccionadas</button>
+                </div>
 
                 <div class="flex items-center p-3 mb-2 border-b border-gray-200 dark:border-gray-700">
                     <input id="select-all-checkbox" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
@@ -61,7 +65,7 @@
                 
                 <div id="playlist-container" class="space-y-4">
                     {% for play in page_obj %}
-                    <div class="flex items-center p-3 text-base font-bold text-gray-900 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-white">
+                    <div id="play-item-{{ play.id }}" class="flex items-center p-3 text-base font-bold text-gray-900 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-white">
                         
                             <input id="play-{{ play.id }}" type="checkbox" value="{{ play.id }}" data-start="{{ play.inicio }}" data-end="{{ play.fin }}" class="play-checkbox w-4 h-4 text-blue-600 rounded">
                             <label for="play-{{ play.id }}" class="ms-3 flex-1">
@@ -109,6 +113,87 @@
 </div>
 
 {% block scripts %}
+<script>
+  // Persistir selección entre páginas y exportar
+  (function(){
+    const STORAGE_KEY = 'selectedPlays:match:{{ match.pk }}';
+    const exportFilters = document.getElementById('export-filters-btn');
+    const exportSelected = document.getElementById('export-selected-btn');
+    const selectAll = document.getElementById('select-all-checkbox');
+
+    const loadSelection = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return new Set(arr.map(String));
+      } catch { return new Set(); }
+    };
+    const saveSelection = (set) => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(set))); } catch {}
+    };
+
+    let selectedSet = loadSelection();
+
+    const applySelectionToPage = () => {
+      document.querySelectorAll('.play-checkbox').forEach(cb => {
+        cb.checked = selectedSet.has(String(cb.value));
+      });
+    };
+    const updateExportDisabled = () => {
+      if (exportSelected) exportSelected.disabled = selectedSet.size === 0;
+    };
+
+    // Inicializar estado al cargar la página
+    applySelectionToPage();
+    updateExportDisabled();
+
+    // Exportar filtradas (respeta filtros actuales)
+    if (exportFilters) {
+      exportFilters.addEventListener('click', () => {
+        const params = new URLSearchParams(window.location.search);
+        params.set('export','csv');
+        window.location.href = `${window.location.pathname}?${params.toString()}`;
+      });
+    }
+
+    // Cambios individuales en checkboxes
+    document.addEventListener('change', (e) => {
+      const t = e.target;
+      if (t && t.classList && t.classList.contains('play-checkbox')) {
+        const id = String(t.value);
+        if (t.checked) selectedSet.add(id); else selectedSet.delete(id);
+        saveSelection(selectedSet);
+        updateExportDisabled();
+      }
+    });
+
+    // Seleccionar Todo (de esta página) y persistir
+    if (selectAll) {
+      selectAll.addEventListener('change', function() {
+        const check = this.checked;
+        document.querySelectorAll('.play-checkbox').forEach(cb => {
+          cb.checked = check;
+          const id = String(cb.value);
+          if (check) selectedSet.add(id); else selectedSet.delete(id);
+        });
+        saveSelection(selectedSet);
+        updateExportDisabled();
+      });
+    }
+
+    // Exportar seleccionadas (usa TODAS las seleccionadas en cualquier página)
+    if (exportSelected) {
+      exportSelected.addEventListener('click', () => {
+        if (selectedSet.size === 0) return;
+        const params = new URLSearchParams(window.location.search);
+        params.set('export','csv');
+        params.set('ids', Array.from(selectedSet).join(','));
+        window.location.href = `${window.location.pathname}?${params.toString()}`;
+      });
+    }
+  })();
+</script>
 <script src="{% static 'js/player.js' %}"></script>
 {% endblock %}
+
 {% endblock %}

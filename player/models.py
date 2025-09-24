@@ -23,12 +23,16 @@ class Match(models.Model):
         verbose_name_plural = "Partidos"
         # Orden por defecto (recientes primero)
         ordering = ['-created_at']
-        # Evitar que los equipos sean iguales
+        # Evitar que los equipos sean iguales y evitar duplicados por fecha
         constraints = [
             models.CheckConstraint(
                 name='match_teams_distinct',
                 check=~models.Q(home_team=models.F('away_team')),
-            )
+            ),
+            models.UniqueConstraint(
+                fields=['home_team', 'away_team', 'match_date'],
+                name='match_unique_teams_date'
+            ),
         ]
 
 # Modelo de Jugada ÚNICO Y UNIFICADO

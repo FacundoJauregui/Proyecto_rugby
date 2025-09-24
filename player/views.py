@@ -15,6 +15,9 @@ from django.db.models import Q, OuterRef, Subquery
 import datetime
 from django.contrib import messages
 from decimal import Decimal, ROUND_HALF_UP
+from django.db import transaction
+from django.http import HttpResponse
+import re
 
 # --- Función Auxiliar para la URL de YouTube (la dejamos como está) ---
 def get_youtube_video_id(url):
@@ -53,6 +56,15 @@ def get_any(row, *keys, default=''):
         v = row_ci.get(str(k).strip().lower())
         if v is not None and str(v).strip() != '':
             return str(v).strip()
+    return default
+
+# NUEVO: Versión rápida cuando ya tenemos el diccionario normalizado por fila
+def get_any_ci(row_ci: dict, *keys, default=''):
+    """Obtiene el primer valor no vacío desde un diccionario con claves en minúsculas y valores ya strippeados."""
+    for k in keys:
+        v = row_ci.get(str(k).strip().lower())
+        if v:
+            return v
     return default
 
 # --- Conversor de Tiempo a Decimal con 3 decimales ---
@@ -119,86 +131,198 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
         return self.request.user.is_staff
     
     def form_valid(self, form):
-        # Recogemos los nuevos datos del formulario
-        home_team_name = form.cleaned_data['home_team']
-        away_team_name = form.cleaned_data['away_team']
+        home_team_name = form.cleaned_data['home_team'].strip()
+        away_team_name = form.cleaned_data['away_team'].strip()
         youtube_url = form.cleaned_data['youtube_url']
         csv_file = form.cleaned_data['csv_file']
         match_date = form.cleaned_data['match_date']
-        
+
         video_id = get_youtube_video_id(youtube_url)
         if not video_id:
             form.add_error('youtube_url', 'La URL de YouTube no es válida.')
             return self.form_invalid(form)
 
-        # Usamos get_or_create y pasamos los nuevos datos en 'defaults'
-        match, created = Match.objects.get_or_create(
-            video_id=video_id,
-            defaults={
-                'home_team': home_team_name,
-                'away_team': away_team_name,
-                'match_date': match_date,
-            }
-        )
+        # NUEVO: Evitar duplicados por (home_team, away_team, match_date)
+        if Match.objects.filter(
+            home_team__iexact=home_team_name,
+            away_team__iexact=away_team_name,
+            match_date=match_date
+        ).exists():
+            messages.warning(self.request, "Ese partido ya se encuentra cargado.")
+            return self.render_to_response(self.get_context_data(form=form))
 
-        # Si el partido ya existía, actualizamos los nombres por si cambiaron
-        if not created:
-            match.home_team = home_team_name
-            match.away_team = away_team_name
-            match.match_date = match_date
-            match.save()
-            match.plays.all().delete()
+        match_pk = None
+        with transaction.atomic():
+            match, created = Match.objects.get_or_create(
+                video_id=video_id,
+                defaults={
+                    'home_team': home_team_name,
+                    'away_team': away_team_name,
+                    'match_date': match_date,
+                }
+            )
+            match_pk = match.pk
+            if not created:
+                match.home_team = home_team_name
+                match.away_team = away_team_name
+                match.match_date = match_date
+                match.save()
+                match.plays.all().delete()
 
-        # ... (el resto de la lógica para procesar el CSV se queda exactamente igual) ...
-        try:
-            data_set = csv_file.read().decode('UTF-8')
-            io_string = io.StringIO(data_set)
-            reader = csv.DictReader(io_string)
-            for row in reader:
-                Play.objects.create(
-                    match=match,
-                    # Usamos nuestra nueva función para convertir los tiempos
-                    inicio=parse_time_to_seconds(get_any(row, 'INICIO')),
-                    fin=parse_time_to_seconds(get_any(row, 'FIN')),
-                    
-                    # El resto de los campos se quedan igual
-                    arbitro=get_any(row, 'Arbitro'),
-                    canal_inicio=get_any(row, 'CANAL INICIO'),
-                    evento=get_any(row, 'EVENTO'),
-                    equipo=get_any(row, 'Equipo', 'EQUIPO'),
-                    ficha=get_any(row, 'Ficha'),
-                    inicia=get_any(row, 'INICIA'),
-                    resultado=get_any(row, 'Resultado', 'RESULTADO'),
-                    termina=get_any(row, 'TERMINA'),
-                    tiempo=get_any(row, 'TIEMPO'),
-                    torneo=get_any(row, 'Torneo'),
-                    zona_fin=get_any(row, 'ZONA FIN'),
-                    zona_inicio=get_any(row, 'ZONA INICIO'),
-                    # Nuevos campos
-                    situacion=get_any(row, 'situacion', 'SITUACION'),
-                    jugadores=get_any(row, 'JUGADORES'),
-                    sigue_con=get_any(row, 'SIGUE CON'),
-                    pos_tiro=get_any(row, 'POS TIRO'),
-                    set_play=get_any(row, 'SET'),
-                    tiro=get_any(row, 'TIRO'),
-                    tipo=get_any(row, 'TIPO'),
-                    accion=get_any(row, 'ACCION'),
-                    termina_en=get_any(row, 'TERMINA EN'),
-                    sancion=get_any(row, 'SANCION'),
-                    transicion=get_any(row, 'TRANSICION'),
-                )
-        except Exception as e:
-            form.add_error(None, f"Hubo un error al leer el archivo CSV: {e}")
-            return self.form_invalid(form)
-        
-        return redirect('player:play_match', pk=match.pk)
+            # Procesar CSV con validación de cabeceras
+            try:
+                data_set = csv_file.read().decode('UTF-8')
+                io_string = io.StringIO(data_set)
+                reader = csv.DictReader(io_string)
+                required_headers = ['INICIO', 'FIN', 'EQUIPO']
+                headers = [h.strip().upper() for h in reader.fieldnames or []]
+                missing = [h for h in required_headers if h not in headers]
+                if missing:
+                    messages.error(self.request, f"Faltan columnas obligatorias en el CSV: {', '.join(missing)}")
+                    return redirect('player:upload_analysis')
+                plays_to_create = []
+                count = 0
+                for row in reader:
+                    # Normalizamos una sola vez por fila (quick win)
+                    row_ci = {str(k).strip().lower(): (str(v).strip() if v is not None else '') for k, v in row.items()}
 
+                    equipo = get_any_ci(row_ci, 'equipo')
+                    if not equipo:
+                        continue
+
+                    inicio_val = parse_time_to_seconds(get_any_ci(row_ci, 'inicio'))
+                    fin_val = parse_time_to_seconds(get_any_ci(row_ci, 'fin'))
+
+                    plays_to_create.append(Play(
+                        match=match,
+                        inicio=inicio_val,
+                        fin=fin_val,
+                        arbitro=get_any_ci(row_ci, 'arbitro'),
+                        canal_inicio=get_any_ci(row_ci, 'canal inicio'),
+                        evento=get_any_ci(row_ci, 'evento'),
+                        equipo=equipo,
+                        ficha=get_any_ci(row_ci, 'ficha'),
+                        inicia=get_any_ci(row_ci, 'inicia'),
+                        resultado=get_any_ci(row_ci, 'resultado'),
+                        termina=get_any_ci(row_ci, 'termina'),
+                        tiempo=get_any_ci(row_ci, 'tiempo'),
+                        torneo=get_any_ci(row_ci, 'torneo'),
+                        zona_fin=get_any_ci(row_ci, 'zona fin'),
+                        zona_inicio=get_any_ci(row_ci, 'zona inicio'),
+                        situacion=get_any_ci(row_ci, 'situacion'),
+                        jugadores=get_any_ci(row_ci, 'jugadores'),
+                        sigue_con=get_any_ci(row_ci, 'sigue con'),
+                        pos_tiro=get_any_ci(row_ci, 'pos tiro'),
+                        set_play=get_any_ci(row_ci, 'set'),
+                        tiro=get_any_ci(row_ci, 'tiro'),
+                        tipo=get_any_ci(row_ci, 'tipo'),
+                        accion=get_any_ci(row_ci, 'accion'),
+                        termina_en=get_any_ci(row_ci, 'termina en'),
+                        sancion=get_any_ci(row_ci, 'sancion'),
+                        transicion=get_any_ci(row_ci, 'transicion'),
+                    ))
+                    count += 1
+                if plays_to_create:
+                    # Quick win: batch_size para mejorar memoria/tiempo en listas grandes
+                    Play.objects.bulk_create(plays_to_create, batch_size=1000)
+                    messages.success(self.request, f"Se cargaron {count} jugadas al partido.")
+                else:
+                    messages.warning(self.request, "El archivo CSV no contenía jugadas válidas.")
+            except Exception as e:
+                messages.error(self.request, f"Error al procesar el archivo CSV: {e}")
+                return redirect('player:upload_analysis')
+
+        # En vez de redirigir, renderizamos la misma vista para mostrar el mensaje y opciones
+        return self.render_to_response(self.get_context_data(form=form))
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Si el formulario fue enviado y existe el partido, pasamos el match_pk
+        form = context.get('form')
+        if form and hasattr(form, 'cleaned_data'):
+            youtube_url = form.cleaned_data.get('youtube_url')
+            if youtube_url:
+                video_id = get_youtube_video_id(youtube_url)
+                match = Match.objects.filter(video_id=video_id).first()
+                if match:
+                    context['match_pk'] = match.pk
+        # Si no, intentamos obtener el último partido creado por el usuario (fallback)
+        if 'match_pk' not in context:
+            last_match = Match.objects.order_by('-id').first()
+            if last_match:
+                context['match_pk'] = last_match.pk
+        return context
+    
 class MatchPlayerView(LoginRequiredMixin, DetailView):
     model = Match
     template_name = 'player/match_player.html'
     context_object_name = 'match'
     login_url = reverse_lazy('player:login')
     redirect_field_name = 'next'
+
+    def get(self, request, *args, **kwargs):
+        # Exportación CSV del conjunto filtrado (sin paginar) o por selección
+        if request.GET.get('export') == 'csv':
+            self.object = self.get_object()
+            match = self.object
+            plays_list = match.plays.all().order_by('inicio')
+
+            # Copiamos filtros actuales
+            evento_filter = request.GET.get('evento', '')
+            equipo_filter = request.GET.get('equipo', '')
+            zona_inicio_filter = request.GET.get('zona_inicio', '')
+            zona_fin_filter = request.GET.get('zona_fin', '')
+            inicia_filter = request.GET.get('inicia', '')
+            situacion_filter = request.GET.get('situacion', '')
+
+            if evento_filter:
+                plays_list = plays_list.filter(evento=evento_filter)
+            if equipo_filter:
+                plays_list = plays_list.filter(equipo=equipo_filter)
+            if zona_inicio_filter:
+                plays_list = plays_list.filter(zona_inicio=zona_inicio_filter)
+            if zona_fin_filter:
+                plays_list = plays_list.filter(zona_fin=zona_fin_filter)
+            if inicia_filter:
+                plays_list = plays_list.filter(inicia=inicia_filter)
+            if situacion_filter:
+                plays_list = plays_list.filter(situacion=situacion_filter)
+
+            # Si vienen ids seleccionados, filtramos por ellos y cambiamos el nombre del archivo
+            ids_param = request.GET.get('ids')
+            if ids_param:
+                try:
+                    ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+                except Exception:
+                    ids = []
+                if ids:
+                    plays_list = plays_list.filter(pk__in=ids)
+                    filename_base = f"{match.home_team} vs {match.away_team}_jugadas_destacadas"
+                else:
+                    filename_base = f"plays_match_{match.pk}"
+            else:
+                filename_base = f"plays_match_{match.pk}"
+
+            # Sanitizar nombre de archivo
+            safe_name = re.sub(r'[^A-Za-z0-9_\-]+', '_', filename_base)
+
+            # Preparar CSV
+            response = HttpResponse(content_type='text/csv; charset=utf-8')
+            response['Content-Disposition'] = f'attachment; filename="{safe_name}.csv"'
+            writer = csv.writer(response)
+            writer.writerow([
+                'inicio', 'fin', 'evento', 'equipo', 'situacion', 'zona_inicio', 'zona_fin',
+                'inicia', 'resultado', 'termina', 'tiempo', 'torneo', 'jugadores', 'sigue_con',
+                'pos_tiro', 'set_play', 'tiro', 'tipo', 'accion', 'termina_en', 'sancion', 'transicion'
+            ])
+            for p in plays_list:
+                writer.writerow([
+                    p.inicio, p.fin, p.evento, p.equipo, p.situacion, p.zona_inicio, p.zona_fin,
+                    p.inicia, p.resultado, p.termina, p.tiempo, p.torneo, p.jugadores, p.sigue_con,
+                    p.pos_tiro, p.set_play, p.tiro, p.tipo, p.accion, p.termina_en, p.sancion, p.transicion
+                ])
+            return response
+        return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -242,10 +366,12 @@ class MatchPlayerView(LoginRequiredMixin, DetailView):
         
         # Opciones únicas normalizadas (sin duplicados por mayúsculas/espacios)
         def unique_options(qs, field):
-            values = qs.values_list(field, flat=True)
+            # Quick win: reducir duplicados en origen con DISTINCT en DB y excluir vacíos
+            values_qs = qs.exclude(**{f"{field}__isnull": True}).exclude(**{field: ''}) \
+                          .values_list(field, flat=True).order_by(field).distinct()
             seen = set()
             opts = []
-            for v in values:
+            for v in values_qs:
                 if not v:
                     continue
                 s = str(v).strip()
@@ -257,7 +383,8 @@ class MatchPlayerView(LoginRequiredMixin, DetailView):
                     opts.append(s)
             return sorted(opts, key=lambda x: x.lower())
 
-        base_plays = match.plays.all()
+        # Para rellenar opciones únicas, limitamos columnas para evitar traer campos innecesarios
+        base_plays = match.plays.only('equipo', 'situacion', 'zona_inicio', 'zona_fin', 'inicia', 'evento')
         context['equipo_options'] = unique_options(base_plays, 'equipo')
         context['situacion_options'] = unique_options(base_plays, 'situacion')
         context['zona_inicio_options'] = unique_options(base_plays, 'zona_inicio')

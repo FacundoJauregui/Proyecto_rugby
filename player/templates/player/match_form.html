@@ -1,14 +1,15 @@
 {% extends "base.html" %}
 
+{% load static %}
+
+
 {% block title %}Cargar Nuevo Análisis{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md dark:bg-gray-800">
     <h1 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Cargar Nuevo Análisis de Partido</h1>
-    
     <form method="post" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
-
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
                 <label for="{{ form.home_team.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.home_team.label }}</label>
@@ -19,25 +20,104 @@
                 <input type="text" name="{{ form.away_team.name }}" id="{{ form.away_team.id_for_label }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" required>
             </div>
         </div>
-        
         <div>
             <label for="{{ form.match_date.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.match_date.label }}</label>
             <input type="date" name="{{ form.match_date.name }}" id="{{ form.match_date.id_for_label }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" required>
         </div>
-        
         <div>
             <label for="{{ form.youtube_url.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.youtube_url.label }}</label>
             <input type="url" name="{{ form.youtube_url.name }}" id="{{ form.youtube_url.id_for_label }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="https://www.youtube.com/watch?v=..." required>
         </div>
-
         <div>
             <label for="{{ form.csv_file.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.csv_file.label }}</label>
             <input type="file" name="{{ form.csv_file.name }}" id="{{ form.csv_file.id_for_label }}" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" required>
         </div>
-
         <button type="submit" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 text-center">
             Cargar y Analizar
         </button>
+
+    {% if messages %}
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          {% for message in messages %}
+            {% if "success" in message.tags %}
+              Swal.fire({
+                icon: 'success',
+                title: 'Partido cargado correctamente',
+                text: '{{ message|escapejs }}',
+                showConfirmButton: true,
+                confirmButtonText: 'Ir al partido',
+                showCancelButton: true,
+                cancelButtonText: 'Cargar otro',
+                position: 'center',
+                buttonsStyling: true,
+                didOpen: () => {
+                  const confirmBtn = Swal.getConfirmButton();
+                  const cancelBtn = Swal.getCancelButton();
+                  [confirmBtn, cancelBtn].forEach(btn => {
+                    if (!btn) return;
+                    btn.style.display = 'inline-flex';
+                    btn.style.alignItems = 'center';
+                    btn.style.justifyContent = 'center';
+                    btn.style.minWidth = '130px';
+                    btn.style.fontWeight = '600';
+                    btn.style.border = 'none';
+                    btn.style.boxShadow = 'none';
+                    btn.style.opacity = '1';
+                    btn.style.filter = 'none';
+                    btn.style.visibility = 'visible';
+                  });
+                  if (confirmBtn) {
+                    confirmBtn.style.backgroundColor = '#1d4ed8';
+                    confirmBtn.style.color = '#fff';
+                  }
+                  if (cancelBtn) {
+                    cancelBtn.style.backgroundColor = '#6b7280';
+                    cancelBtn.style.color = '#fff';
+                  }
+                }
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  window.location.href = '/matches/{{ match_pk }}/';
+                } else if (result.dismiss === Swal.DismissReason.cancel) {
+                  window.location.href = window.location.pathname;
+                }
+              });
+            {% elif "warning" in message.tags %}
+              Swal.fire({
+                icon: 'warning',
+                title: 'Partido duplicado',
+                text: '{{ message|escapejs }}',
+                showConfirmButton: true,
+                confirmButtonText: 'Entendido',
+                position: 'center',
+                buttonsStyling: true,
+                didOpen: () => {
+                  const btn = Swal.getConfirmButton();
+                  if (btn) {
+                    btn.style.display = 'inline-flex';
+                    btn.style.alignItems = 'center';
+                    btn.style.justifyContent = 'center';
+                    btn.style.minWidth = '130px';
+                    btn.style.fontWeight = '600';
+                    btn.style.border = 'none';
+                    btn.style.boxShadow = 'none';
+                    btn.style.opacity = '1';
+                    btn.style.filter = 'none';
+                    btn.style.visibility = 'visible';
+                    btn.style.backgroundColor = '#f59e0b'; // amarillo anaranjado
+                    btn.style.color = '#fff';
+                  }
+                }
+              });
+            {% endif %}
+          {% endfor %}
+        });
+      </script>
+    {% endif %}
     </form>
 </div>
+
+
+
 {% endblock %}
