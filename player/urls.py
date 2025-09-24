@@ -9,6 +9,7 @@ from .views import (
     UserLoginView, 
     UserLogoutView,
     WelcomeView,
+    MatchPlaysDataView,  # nuevo endpoint JSON
 )
 app_name = 'player'
 
@@ -32,4 +33,7 @@ urlpatterns = [
     path('accounts/logout/', UserLogoutView.as_view(), name='logout'),
     path('login/', RedirectView.as_view(pattern_name='player:login', permanent=True)),
     path('logout/', RedirectView.as_view(pattern_name='player:logout', permanent=True)),
+
+    # Endpoint JSON para DataTables con las jugadas del partido
+    path('matches/<int:pk>/plays-data/', MatchPlaysDataView.as_view(), name='plays_data'),
 ]

@@ -2,7 +2,7 @@
 import csv
 import io
 from urllib.parse import urlparse, parse_qs
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect, render, get_object_or_404
 from django.contrib.auth import logout
 from django.views.generic import FormView, DetailView, ListView,View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -16,8 +16,9 @@ import datetime
 from django.contrib import messages
 from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 import re
+from django.db.models import F
 
 # --- Función Auxiliar para la URL de YouTube (la dejamos como está) ---
 def get_youtube_video_id(url):
@@ -468,3 +469,61 @@ class MatchListView(LoginRequiredMixin, ListView):
         # Pasamos el ordenamiento current_filter a la plantilla para mantener el estado del filtro
         context['current_sort'] = self.request.GET.get('sort', '-match_date')
         return context
+    
+class MatchPlaysDataView(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        match = get_object_or_404(Match, pk=pk)
+        plays = Play.objects.filter(match=match)
+
+        # Aplicar filtros
+        filters = {
+            'equipo': request.GET.get('equipo'),
+            'situacion': request.GET.get('situacion'),
+            'zona_inicio': request.GET.get('zona_inicio'),
+            'zona_fin': request.GET.get('zona_fin'),
+        }
+        for field, value in filters.items():
+            if value:
+                plays = plays.filter(**{field: value})
+
+        # Ordenar según DataTables
+        order_column_map = {
+            1: 'equipo',
+            2: 'situacion',
+            3: 'zona_inicio',
+            4: 'zona_fin',
+        }
+        order_col_index = int(request.GET.get('order[0][column]', 1))
+        order_dir = request.GET.get('order[0][dir]', 'asc')
+        order_field = order_column_map.get(order_col_index, 'equipo')
+        if order_dir == 'desc':
+            order_field = f'-{order_field}'
+        plays = plays.order_by(order_field)
+
+        # Paginación
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 10))
+        plays_page = plays[start:start + length]
+
+        # Construir respuesta JSON
+        data = [
+            [
+                play.id,
+                play.inicio,
+                play.fin,
+                play.evento,
+                play.equipo,
+                play.situacion,
+                play.zona_inicio,
+                play.zona_fin,
+            ]
+            for play in plays_page
+        ]
+
+        response = {
+            'draw': int(request.GET.get('draw', 0)),
+            'recordsTotal': plays.count(),
+            'recordsFiltered': plays.count(),
+            'data': data,
+        }
+        return JsonResponse(response)

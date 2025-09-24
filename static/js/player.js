@@ -1,4 +1,4 @@
-   // 1. Carga la API de YouTube (sin cambios)
+// 1. Carga la API de YouTube (sin cambios)
     var tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
     var firstScriptTag = document.getElementsByTagName('script')[0];
@@ -78,22 +78,48 @@
     document.getElementById('play-selection-btn').addEventListener('click', () => {
         clearAllHighlights(); 
         resetNowPlayingPanel(); // Reseteamos el panel al iniciar
-        const selectedPlays = document.querySelectorAll('.play-checkbox:checked');
-        playlist = [];
-        
-        selectedPlays.forEach(checkbox => {
-            // CAMBIO 1: Buscamos el texto de la jugada para guardarlo
-            const label = checkbox.nextElementSibling;
-            const eventName = label.querySelector('.font-semibold').textContent;
-            const details = label.querySelector('.text-xs').textContent;
 
-            playlist.push({
-                elementId: checkbox.parentElement.id, 
-                start: parseFloat(checkbox.dataset.start),
-                end: parseFloat(checkbox.dataset.end),
-                event: eventName,
-                details: details,
-            });
+        // Soportar selección desde DataTables (.dt-play) y fallback (.play-checkbox)
+        const selectedDT = Array.from(document.querySelectorAll('.dt-play:checked'));
+        const selectedClassic = Array.from(document.querySelectorAll('.play-checkbox:checked'));
+        const selectedPlays = [...selectedDT, ...selectedClassic];
+
+        playlist = [];
+        selectedPlays.forEach(checkbox => {
+            let start = parseFloat(checkbox.dataset.start);
+            let end = parseFloat(checkbox.dataset.end);
+            let eventName = '';
+            let details = '';
+            let elementId = '';
+
+            if (checkbox.classList.contains('dt-play')) {
+                // DataTables: datos vienen en data-*
+                eventName = checkbox.dataset.event || '';
+                details = checkbox.dataset.equipo || '';
+                const row = checkbox.closest('tr');
+                elementId = row ? row.id : '';
+            } else {
+                // Lista clásica original
+                const label = checkbox.nextElementSibling;
+                if (label) {
+                    const e = label.querySelector('.font-semibold');
+                    const d = label.querySelector('.text-xs');
+                    eventName = e ? e.textContent : '';
+                    details = d ? d.textContent : '';
+                }
+                const container = checkbox.closest('[id^="play-item-"]') || checkbox.parentElement;
+                elementId = container ? container.id : '';
+            }
+
+            if (!isNaN(start) && !isNaN(end)) {
+                playlist.push({
+                    elementId,
+                    start,
+                    end,
+                    event: eventName,
+                    details: details,
+                });
+            }
         });
 
         if (playlist.length > 0) {

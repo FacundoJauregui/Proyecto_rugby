@@ -3,194 +3,215 @@
 {% block title %}Reproductor: {{ match.home_team }} vs {{ match.away_team }}{% endblock %}
 
 {% block content %}
-<style>
-    /* Esta regla busca el iframe que YouTube crea dentro de nuestro div #player */
-    /* y lo obliga a ocupar el 100% del espacio de su contenedor. */
-    #player iframe {
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        top: 0;
-        left: 0;
-    }
-</style>
-
 <div>
-    <h1 class="text-3xl font-bold mb-6 text-gray-900 dark:text-white">{{ match.home_team }} vs. {{ match.away_team }}</h1>
+  <h1 class="text-3xl font-bold mb-6 text-gray-900 dark:text-white">{{ match.home_team }} vs. {{ match.away_team }}</h1>
 
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        
-        <div class="lg:col-span-1">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
-                <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Filtros</h2>
-                <form method="GET" action="" class="space-y-4">
-                    <select name="equipo" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
-                        <option value="" {% if not filter_params.equipo %}selected{% endif %}>-- Por Equipo --</option>
-                        {% for option in equipo_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.equipo %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
-                    </select>
-                    <select name="situacion" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
-                        <option value="">-- Situación --</option>
-                        {% for option in situacion_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.situacion %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
-                    </select>
-                    <select name="zona_inicio" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
-                        <option value="">-- Por Zona de Inicio --</option>
-                        {% for option in zona_inicio_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.zona_inicio %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
-                    </select>
-                    <select name="zona_fin" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
-                        <option value="">-- Por Zona de Fin --</option>
-                        {% for option in zona_fin_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.zona_fin %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
-                    </select>
+  <!-- Layout 25%/75% horizontal, panel a la izquierda -->
+  <div class="flex flex-col lg:flex-row gap-8 w-full">
+    <!-- Panel de control: 25% -->
+    <div class="flex flex-col gap-6 lg:basis-1/4 min-w-[320px] max-w-[480px] w-full">
+      <!-- Filtros -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Filtros</h2>
+        <form method="GET" action="" class="space-y-3">
+          <select name="equipo" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="" {% if not filter_params.equipo %}selected{% endif %}>-- Por Equipo --</option>
+            {% for option in equipo_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.equipo %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+          </select>
+          <select name="situacion" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">-- Situación --</option>
+            {% for option in situacion_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.situacion %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+          </select>
+          <select name="zona_inicio" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">-- Zona Inicio --</option>
+            {% for option in zona_inicio_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.zona_inicio %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+          </select>
+          <select name="zona_fin" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">-- Zona Fin --</option>
+            {% for option in zona_fin_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.zona_fin %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+          </select>
+          <div class="flex space-x-2">
+            <button type="submit" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">Filtrar</button>
+            <a href="{% url 'player:play_match' pk=match.pk %}" class="w-full text-center text-gray-900 bg-white border border-gray-300 hover:bg-gray-100 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700">Limpiar</a>
+          </div>
+        </form>
+      </div>
 
-                    <div class="flex space-x-2">
-                        <button type="submit" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">Filtrar</button>
-                        <a href="{% url 'player:play_match' pk=match.pk %}" class="w-full text-center text-gray-900 bg-white border border-gray-300 hover:bg-gray-100 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700">Limpiar</a>
-                    </div>
-                </form>
-            </div>
-
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Lista de Jugadas</h2>
-                <button id="play-selection-btn" class="w-full mb-4 text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    ▶️ Reproducir Selección
-                </button>
-                <div class="flex gap-2 mb-3">
-                    <button id="export-filters-btn" type="button" class="flex-1 text-gray-900 bg-white border border-gray-300 focus:outline-none hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:border-gray-600 dark:focus:ring-gray-700">⬇️ Exportar filtradas</button>
-                    <button id="export-selected-btn" type="button" disabled class="flex-1 text-gray-900 bg-white border border-gray-300 focus:outline-none hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:border-gray-600 dark:focus:ring-gray-700">⬇️ Exportar seleccionadas</button>
-                </div>
-
-                <div class="flex items-center p-3 mb-2 border-b border-gray-200 dark:border-gray-700">
-                    <input id="select-all-checkbox" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
-                    <label for="select-all-checkbox" class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">Seleccionar Todo (en esta página)</label>
-                </div>
-                
-                <div id="playlist-container" class="space-y-4">
-                    {% for play in page_obj %}
-                    <div id="play-item-{{ play.id }}" class="flex items-center p-3 text-base font-bold text-gray-900 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-white">
-                        
-                            <input id="play-{{ play.id }}" type="checkbox" value="{{ play.id }}" data-start="{{ play.inicio }}" data-end="{{ play.fin }}" class="play-checkbox w-4 h-4 text-blue-600 rounded">
-                            <label for="play-{{ play.id }}" class="ms-3 flex-1">
-                                <span class="font-semibold">{{ play.situacion }}</span>
-                                <span class="block text-xs font-normal text-gray-500 dark:text-gray-400">{{ play.equipo }}</span>
-                            </label>
-
-                    </div>
-                    {% empty %}
-                    <p class="text-gray-500 dark:text-gray-400">No hay jugadas que coincidan con los filtros.</p>
-                    {% endfor %}
-                </div>
-
-                <nav class="flex items-center justify-between pt-4" aria-label="Table navigation">
-                    <span class="text-sm font-normal text-gray-500 dark:text-gray-400">Página <span class="font-semibold text-gray-900 dark:text-white">{{ page_obj.number }}</span> de <span class="font-semibold text-gray-900 dark:text-white">{{ page_obj.paginator.num_pages }}</span></span>
-                    <ul class="inline-flex -space-x-px rtl:space-x-reverse text-sm h-8">
-                        {% if page_obj.has_previous %}
-                        <li>
-                            <a href="?page={{ page_obj.previous_page_number }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="flex items-center justify-center px-3 h-8 ms-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-s-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Anterior</a>
-                        </li>
-                        {% endif %}
-                        {% if page_obj.has_next %}
-                        <li>
-                            <a href="?page={{ page_obj.next_page_number }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 bg-white border border-gray-300 rounded-e-lg hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">Siguiente</a>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-            </div>
+      <!-- Botones -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Controles</h2>
+        <div class="flex flex-col gap-2 mb-3">
+          <button id="play-selection-btn" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>▶️ Reproducir Selección</button>
+          <div class="flex flex-row gap-2">
+            <button id="export-filters-btn" type="button" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">⬇️ Exportar filtradas</button>
+            <button id="export-selected-btn" type="button" disabled class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">⬇️ Exportar seleccionadas</button>
+          </div>
         </div>
+      </div>
 
-        <div class="lg:col-span-3" id="video-container">
-            <div class="video-container bg-white dark:bg-gray-800 rounded-lg shadow-md aspect-w-16 aspect-h-9 sticky top-8 relative">
-                <div id="player" data-video-id="{{ match.video_id }}" class="w-full h-full bg-black rounded-lg"></div>
-            </div>
-
-            <div id="now-playing-panel" class="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md hidden">
-                <span class="text-xs font-bold text-blue-600 dark:text-blue-400">AHORA REPRODUCIENDO:</span>
-                <p class="text-lg font-semibold text-gray-900 dark:text-white" id="now-playing-event">---</p>
-                <p class="text-sm text-gray-500 dark:text-gray-400" id="now-playing-details">Seleccioná jugadas y presioná play</p>
-            </div>
-        </div>
-        
+      <!-- Tabla -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 overflow-x-auto">
+        <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Lista de Jugadas</h2>
+        <table id="plays-table" class="min-w-full text-sm text-left text-gray-500 dark:text-gray-400 display nowrap" style="width:100%">
+          <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+            <tr>
+              <th class="p-2"><input type="checkbox" id="dt-select-all"></th>
+              <th class="p-2">Equipo</th>
+              <th class="p-2">Situación</th>
+              <th class="p-2">Zona Inicio</th>
+              <th class="p-2">Zona Fin</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
+
+    <!-- Video: 75% -->
+    <div class="video-container flex-1 lg:basis-3/4" style="min-width:0;">
+      <div id="player" data-video-id="{{ match.video_id }}" class="w-full h-full bg-black rounded-lg"></div>
+    </div>
+  </div>
 </div>
 
 {% block scripts %}
 <script>
-  // Persistir selección entre páginas y exportar
+  // DataTables + selección persistente + estilo flowbite-like
   (function(){
-    const STORAGE_KEY = 'selectedPlays:match:{{ match.pk }}';
-    const exportFilters = document.getElementById('export-filters-btn');
-    const exportSelected = document.getElementById('export-selected-btn');
-    const selectAll = document.getElementById('select-all-checkbox');
-
-    const loadSelection = () => {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        const arr = raw ? JSON.parse(raw) : [];
-        return new Set(arr.map(String));
-      } catch { return new Set(); }
-    };
-    const saveSelection = (set) => {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(set))); } catch {}
-    };
-
-    let selectedSet = loadSelection();
-
-    const applySelectionToPage = () => {
-      document.querySelectorAll('.play-checkbox').forEach(cb => {
-        cb.checked = selectedSet.has(String(cb.value));
-      });
-    };
-    const updateExportDisabled = () => {
-      if (exportSelected) exportSelected.disabled = selectedSet.size === 0;
-    };
-
-    // Inicializar estado al cargar la página
-    applySelectionToPage();
-    updateExportDisabled();
-
-    // Exportar filtradas (respeta filtros actuales)
-    if (exportFilters) {
-      exportFilters.addEventListener('click', () => {
-        const params = new URLSearchParams(window.location.search);
-        params.set('export','csv');
-        window.location.href = `${window.location.pathname}?${params.toString()}`;
-      });
+    function waitForDT(cb, tries=20){
+      if (window.DataTable) return cb();
+      if (tries<=0) return console.error('DataTables no cargó');
+      setTimeout(() => waitForDT(cb, tries-1), 150);
     }
 
-    // Cambios individuales en checkboxes
-    document.addEventListener('change', (e) => {
-      const t = e.target;
-      if (t && t.classList && t.classList.contains('play-checkbox')) {
-        const id = String(t.value);
-        if (t.checked) selectedSet.add(id); else selectedSet.delete(id);
-        saveSelection(selectedSet);
-        updateExportDisabled();
-      }
-    });
+    waitForDT(function(){
+      const STORAGE_KEY = 'selectedPlays:match:{{ match.pk }}';
+      const loadSel = () => { try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]').map(String)); } catch { return new Set(); } };
+      const saveSel = (s) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(s))); } catch {} };
+      let selectedSet = loadSel();
 
-    // Seleccionar Todo (de esta página) y persistir
-    if (selectAll) {
-      selectAll.addEventListener('change', function() {
-        const check = this.checked;
-        document.querySelectorAll('.play-checkbox').forEach(cb => {
-          cb.checked = check;
-          const id = String(cb.value);
-          if (check) selectedSet.add(id); else selectedSet.delete(id);
+      const exportFiltersBtn = document.getElementById('export-filters-btn');
+      const exportSelectedBtn = document.getElementById('export-selected-btn');
+      const playBtn = document.getElementById('play-selection-btn');
+      const dtSelectAll = document.getElementById('dt-select-all');
+
+      const updateButtons = () => {
+        if (exportSelectedBtn) exportSelectedBtn.disabled = selectedSet.size === 0;
+        if (playBtn) playBtn.disabled = selectedSet.size === 0;
+      };
+
+      const ajaxUrl = `{% url 'player:plays_data' pk=match.pk %}`;
+
+      const dt = new DataTable('#plays-table', {
+        rowId: row => `play-item-${row[0]}`,
+        processing: true,
+        serverSide: true,
+        searching: true,
+        lengthChange: true,
+        pageLength: 10,
+        order: [[1, 'asc']],
+        info: false, // Oculta el mensaje "Showing 1 to 10..."
+        scrollX: true, // Fuerza barra horizontal
+        ajax: function(data, callback) {
+          const params = new URLSearchParams(window.location.search);
+          const payload = new URLSearchParams();
+          // DataTables
+          payload.set('draw', data.draw);
+          payload.set('start', data.start);
+          payload.set('length', data.length);
+          if (data.search && data.search.value) payload.set('search[value]', data.search.value);
+          if (data.order && data.order.length) {
+            payload.set('order[0][column]', data.order[0].column);
+            payload.set('order[0][dir]', data.order[0].dir);
+          }
+          // Filtros actuales
+          ['equipo','situacion','zona_inicio','zona_fin'].forEach(k => {
+            const v = params.get(k);
+            if (v) payload.set(k, v);
+          });
+          // Selección actual para marcar
+          if (selectedSet.size) payload.set('selected_ids', Array.from(selectedSet).join(','));
+
+          fetch(`${ajaxUrl}?${payload.toString()}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+            .then(json => { console.log('DT data:', json); callback(json); 
+            })
+            .catch(err => {
+              console.error('DataTables AJAX error:', err);
+              callback({ draw: data.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
+            });
+        },
+        columns: [
+          { data: null, orderable: false, render: function(_data, _type, row){
+              const id = row[0];
+              const inicio = row[1] ?? '';
+              const fin = row[2] ?? '';
+              const evento = row[3] ?? '';
+              const equipo = row[4] ?? '';
+              const checked = selectedSet.has(String(id)) ? 'checked' : '';
+              return `<input type="checkbox" class="dt-play" value="${id}" data-start="${inicio}" data-end="${fin}" data-event="${evento}" data-equipo="${equipo}" ${checked}>`;
+            }
+          },
+          { data: 4 },
+          { data: 5 },
+          { data: 6 },
+          { data: 7 },
+        ],
+        drawCallback: function(){
+          // Reaplicar estado del checkbox seleccionar todo según filas visibles
+          const allVisible = Array.from(document.querySelectorAll('#plays-table .dt-play'));
+          const allChecked = allVisible.length && allVisible.every(cb => cb.checked);
+          if (dtSelectAll) dtSelectAll.checked = allChecked;
+        }
+      });
+
+      // Cambios en checkboxes por fila
+      document.querySelector('#plays-table').addEventListener('change', (e) => {
+        if (e.target && e.target.classList.contains('dt-play')) {
+          const id = String(e.target.value);
+          if (e.target.checked) selectedSet.add(id); else selectedSet.delete(id);
+          saveSel(selectedSet);
+          updateButtons();
+        }
+      });
+
+      // Seleccionar todo de la página actual
+      if (dtSelectAll) {
+        dtSelectAll.addEventListener('change', function(){
+          const check = this.checked;
+          document.querySelectorAll('#plays-table .dt-play').forEach(cb => {
+            cb.checked = check;
+            const id = String(cb.value);
+            if (check) selectedSet.add(id); else selectedSet.delete(id);
+          });
+          saveSel(selectedSet);
+          updateButtons();
         });
-        saveSelection(selectedSet);
-        updateExportDisabled();
-      });
-    }
+      }
 
-    // Exportar seleccionadas (usa TODAS las seleccionadas en cualquier página)
-    if (exportSelected) {
-      exportSelected.addEventListener('click', () => {
-        if (selectedSet.size === 0) return;
-        const params = new URLSearchParams(window.location.search);
-        params.set('export','csv');
-        params.set('ids', Array.from(selectedSet).join(','));
-        window.location.href = `${window.location.pathname}?${params.toString()}`;
-      });
-    }
+      // Exportar filtradas (sin ids)
+      if (exportFiltersBtn) {
+        exportFiltersBtn.addEventListener('click', () => {
+          const params = new URLSearchParams(window.location.search);
+          params.set('export','csv');
+          window.location.href = `${window.location.pathname}?${params.toString()}`;
+        });
+      }
+
+      // Exportar seleccionadas (con ids)
+      if (exportSelectedBtn) {
+        exportSelectedBtn.addEventListener('click', () => {
+          if (!selectedSet.size) return;
+          const params = new URLSearchParams(window.location.search);
+          params.set('export','csv');
+          params.set('ids', Array.from(selectedSet).join(','));
+          window.location.href = `${window.location.pathname}?${params.toString()}`;
+        });
+      }
+
+      updateButtons();
+      // Intento inicial de estilo por si DataTables ya renderizó
+    });
   })();
 </script>
 <script src="{% static 'js/player.js' %}"></script>
