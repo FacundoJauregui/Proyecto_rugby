@@ -8,7 +8,7 @@
 
   <!-- Layout 25%/75% horizontal, panel a la izquierda -->
   <div class="flex flex-col lg:flex-row gap-8 w-full">
-    <!-- Panel de control: 25% -->
+    <!-- Panel 25% (Filtros, Controles, Presets, CSV) -->
     <div class="flex flex-col gap-6 lg:basis-1/4 min-w-[320px] max-w-[480px] w-full">
       <!-- Filtros -->
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
@@ -83,23 +83,6 @@
         <p class="text-xs text-gray-500 mt-2">Admite UTF-8/Latin-1/Windows-1252. Antes de subir revisá la preview si aparece.</p>
       </div>
       {% endif %}
-
-      <!-- Tabla -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 overflow-x-auto">
-        <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Lista de Jugadas</h2>
-        <table id="plays-table" class="min-w-full text-sm text-left text-gray-500 dark:text-gray-400 display nowrap" style="width:100%">
-          <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-            <tr>
-              <th class="p-2"><input type="checkbox" id="dt-select-all"></th>
-              <th class="p-2">Equipo</th>
-              <th class="p-2">Jugada</th>
-              <th class="p-2">Zona Inicio</th>
-              <th class="p-2">Zona Fin</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
     </div>
 
     <!-- Columna derecha: video (75%) -->
@@ -111,6 +94,32 @@
         <div id="now-playing-event" class="text-base font-semibold text-gray-900 dark:text-white mt-1">---</div>
         <div id="now-playing-details" class="text-sm text-gray-600 dark:text-gray-300">Seleccioná jugadas y presioná play</div>
       </div>
+    </div>
+  </div>
+
+  <!-- Grid inferior (50%/50%): DataTable a la izquierda -->
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- 50% izquierdo: Lista de Jugadas -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 overflow-x-auto">
+      <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Lista de Jugadas</h2>
+      <table id="plays-table" class="min-w-full text-sm text-left text-gray-500 dark:text-gray-400 display nowrap" style="width:100%">
+        <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+          <tr>
+            <th class="p-2"><input type="checkbox" id="dt-select-all"></th>
+            <th class="p-2">Equipo</th>
+            <th class="p-2">Jugada</th>
+            <th class="p-2">Zona Inicio</th>
+            <th class="p-2">Zona Fin</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- 50% derecho: espacio para futuras tarjetas (estadísticas, notas, etc.) -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 min-h-[200px]">
+      <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Panel adicional</h2>
+      <p class="text-sm text-gray-600 dark:text-gray-300">Espacio disponible para estadísticas, notas o comparativas.</p>
     </div>
   </div>
 </div>
