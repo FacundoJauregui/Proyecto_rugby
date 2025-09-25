@@ -39,40 +39,37 @@ class Match(models.Model):
 class Play(models.Model):
     match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='plays')
 
-    # --- CAMPOS DE TIEMPO ---
-    # Usamos Decimal con milisegundos para evitar errores de punto flotante.
-    inicio = models.DecimalField(max_digits=9, decimal_places=3, verbose_name="INICIO (segundos)", help_text="Segundo exacto de inicio (ms)")
-    fin = models.DecimalField(max_digits=9, decimal_places=3, verbose_name="FIN (segundos)", help_text="Segundo exacto de fin (ms)")
-    
-    # --- RESTO DE LOS CAMPOS ---
+    # Orden final requerido por el CSV:
+    jugada = models.CharField(max_length=255, blank=True, verbose_name="Jugada")
     arbitro = models.CharField(max_length=255, blank=True, verbose_name="Arbitro")
-    canal_inicio = models.CharField(max_length=100, blank=True, verbose_name="CANAL INICIO")
-    evento = models.CharField(max_length=255, blank=True, verbose_name="EVENTO", db_index=True)
+    canal_inicio = models.CharField(max_length=100, blank=True, verbose_name="Canal Inicio")
+    evento = models.CharField(max_length=255, blank=True, verbose_name="Evento", db_index=True)
     equipo = models.CharField(max_length=255, blank=True, verbose_name="Equipo", db_index=True)
+    fin = models.DecimalField(max_digits=9, decimal_places=3, verbose_name="Fin (segundos)", help_text="Segundo exacto de fin (ms)")
     ficha = models.CharField(max_length=100, blank=True, verbose_name="Ficha")
-    inicia = models.CharField(max_length=100, blank=True, verbose_name="INICIA", db_index=True)
-    resultado = models.CharField(max_length=100, blank=True, verbose_name="Resultado")
-    termina = models.CharField(max_length=100, blank=True, verbose_name="TERMINA")
-    tiempo = models.CharField(max_length=50, blank=True, verbose_name="TIEMPO") # Este lo dejamos como texto por si tiene otro uso
+    inicia = models.CharField(max_length=100, blank=True, verbose_name="Inicia", db_index=True)
+    inicio = models.DecimalField(max_digits=9, decimal_places=3, verbose_name="Inicio (segundos)", help_text="Segundo exacto de inicio (ms)")
+    marcador_final = models.CharField(max_length=50, blank=True, verbose_name="Marcador Final")
+    termina = models.CharField(max_length=100, blank=True, verbose_name="Termina")
+    tiempo = models.CharField(max_length=50, blank=True, verbose_name="Tiempo")
     torneo = models.CharField(max_length=255, blank=True, verbose_name="Torneo")
-    zona_fin = models.CharField(max_length=100, blank=True, verbose_name="ZONA FIN", db_index=True)
-    zona_inicio = models.CharField(max_length=100, blank=True, verbose_name="ZONA INICIO", db_index=True)
-
-    # --- NUEVOS CAMPOS SEGÚN CSV ---
-    situacion = models.CharField(max_length=100, blank=True, verbose_name="SITUACION", db_index=True)
-    jugadores = models.CharField(max_length=255, blank=True, verbose_name="JUGADORES")
-    sigue_con = models.CharField(max_length=255, blank=True, verbose_name="SIGUE CON")
-    pos_tiro = models.CharField(max_length=100, blank=True, verbose_name="POS TIRO")
-    set_play = models.CharField(max_length=100, blank=True, verbose_name="SET", db_index=True)
-    tiro = models.CharField(max_length=100, blank=True, verbose_name="TIRO")
-    tipo = models.CharField(max_length=100, blank=True, verbose_name="TIPO", db_index=True)
-    accion = models.CharField(max_length=100, blank=True, verbose_name="ACCION", db_index=True)
-    termina_en = models.CharField(max_length=100, blank=True, verbose_name="TERMINA EN", db_index=True)
-    sancion = models.CharField(max_length=100, blank=True, verbose_name="SANCION", db_index=True)
-    transicion = models.CharField(max_length=100, blank=True, verbose_name="TRANSICION", db_index=True)
+    zona_fin = models.CharField(max_length=100, blank=True, verbose_name="Zona Fin", db_index=True)
+    zona_inicio = models.CharField(max_length=100, blank=True, verbose_name="Zona Inicio", db_index=True)
+    resultado = models.CharField(max_length=100, blank=True, verbose_name="Resultado")
+    jugadores = models.CharField(max_length=255, blank=True, verbose_name="Jugadores")
+    sigue_con = models.CharField(max_length=255, blank=True, verbose_name="Sigue Con")
+    pos_tiro = models.CharField(max_length=100, blank=True, verbose_name="Pos Tiro")
+    set = models.CharField(max_length=100, blank=True, verbose_name="Set", db_index=True)
+    tiro = models.CharField(max_length=100, blank=True, verbose_name="Tiro")
+    tipo = models.CharField(max_length=100, blank=True, verbose_name="Tipo", db_index=True)
+    accion = models.CharField(max_length=100, blank=True, verbose_name="Accion", db_index=True)
+    termina_en = models.CharField(max_length=100, blank=True, verbose_name="Termina En", db_index=True)
+    sancion = models.CharField(max_length=100, blank=True, verbose_name="Sancion", db_index=True)
+    situacion = models.CharField(max_length=100, blank=True, verbose_name="Situacion", db_index=True)
+    transicion = models.CharField(max_length=100, blank=True, verbose_name="Transicion", db_index=True)
 
     def __str__(self):
-        return f"{self.evento} - {self.equipo}"
+        return f"{self.jugada} - {self.equipo}"
 
     class Meta:
         verbose_name = "Jugada"
@@ -113,6 +110,7 @@ class Play(models.Model):
         
 class Team(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name="Nombre del Equipo")
+    alias = models.CharField(max_length=50, unique=True, blank=True, null=True, verbose_name="Alias/Nombre abreviado")
 
     def __str__(self):
         return self.name
@@ -141,7 +139,8 @@ class Profile(models.Model):
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
-        Profile.objects.create(user=instance)
+        # Usar get_or_create para evitar colisiones si un inline en admin también intenta crear el Profile
+        Profile.objects.get_or_create(user=instance)
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):

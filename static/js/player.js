@@ -34,7 +34,8 @@
 }
 
     function onPlayerReady(event) {
-        document.getElementById('play-selection-btn').disabled = false;
+        const playBtnEl = document.getElementById('play-selection-btn');
+        if (playBtnEl) playBtnEl.disabled = false;
     }
 
     function onPlayerStateChange(event) {
@@ -70,63 +71,66 @@
     const nowPlayingDetails = document.getElementById('now-playing-details');
 
     function resetNowPlayingPanel() {
-        nowPlayingPanel.classList.add('hidden');
-        nowPlayingEvent.textContent = '---';
-        nowPlayingDetails.textContent = 'Seleccioná jugadas y presioná play';
+        if (nowPlayingPanel) nowPlayingPanel.classList.add('hidden');
+        if (nowPlayingEvent) nowPlayingEvent.textContent = '---';
+        if (nowPlayingDetails) nowPlayingDetails.textContent = 'Seleccioná jugadas y presioná play';
     }
 
-    document.getElementById('play-selection-btn').addEventListener('click', () => {
-        clearAllHighlights(); 
-        resetNowPlayingPanel(); // Reseteamos el panel al iniciar
+    const playSelectionBtn = document.getElementById('play-selection-btn');
+    if (playSelectionBtn) {
+        playSelectionBtn.addEventListener('click', () => {
+            clearAllHighlights(); 
+            resetNowPlayingPanel(); // Reseteamos el panel al iniciar
 
-        // Soportar selección desde DataTables (.dt-play) y fallback (.play-checkbox)
-        const selectedDT = Array.from(document.querySelectorAll('.dt-play:checked'));
-        const selectedClassic = Array.from(document.querySelectorAll('.play-checkbox:checked'));
-        const selectedPlays = [...selectedDT, ...selectedClassic];
+            // Soportar selección desde DataTables (.dt-play) y fallback (.play-checkbox)
+            const selectedDT = Array.from(document.querySelectorAll('.dt-play:checked'));
+            const selectedClassic = Array.from(document.querySelectorAll('.play-checkbox:checked'));
+            const selectedPlays = [...selectedDT, ...selectedClassic];
 
-        playlist = [];
-        selectedPlays.forEach(checkbox => {
-            let start = parseFloat(checkbox.dataset.start);
-            let end = parseFloat(checkbox.dataset.end);
-            let eventName = '';
-            let details = '';
-            let elementId = '';
+            playlist = [];
+            selectedPlays.forEach(checkbox => {
+                let start = parseFloat(checkbox.dataset.start);
+                let end = parseFloat(checkbox.dataset.end);
+                let eventName = '';
+                let details = '';
+                let elementId = '';
 
-            if (checkbox.classList.contains('dt-play')) {
-                // DataTables: datos vienen en data-*
-                eventName = checkbox.dataset.event || '';
-                details = checkbox.dataset.equipo || '';
-                const row = checkbox.closest('tr');
-                elementId = row ? row.id : '';
-            } else {
-                // Lista clásica original
-                const label = checkbox.nextElementSibling;
-                if (label) {
-                    const e = label.querySelector('.font-semibold');
-                    const d = label.querySelector('.text-xs');
-                    eventName = e ? e.textContent : '';
-                    details = d ? d.textContent : '';
+                if (checkbox.classList.contains('dt-play')) {
+                    // DataTables: datos vienen en data-*
+                    eventName = checkbox.dataset.event || '';
+                    details = checkbox.dataset.equipo || '';
+                    const row = checkbox.closest('tr');
+                    elementId = row ? row.id : '';
+                } else {
+                    // Lista clásica original
+                    const label = checkbox.nextElementSibling;
+                    if (label) {
+                        const e = label.querySelector('.font-semibold');
+                        const d = label.querySelector('.text-xs');
+                        eventName = e ? e.textContent : '';
+                        details = d ? d.textContent : '';
+                    }
+                    const container = checkbox.closest('[id^="play-item-"]') || checkbox.parentElement;
+                    elementId = container ? container.id : '';
                 }
-                const container = checkbox.closest('[id^="play-item-"]') || checkbox.parentElement;
-                elementId = container ? container.id : '';
-            }
 
-            if (!isNaN(start) && !isNaN(end)) {
-                playlist.push({
-                    elementId,
-                    start,
-                    end,
-                    event: eventName,
-                    details: details,
-                });
+                if (!isNaN(start) && !isNaN(end)) {
+                    playlist.push({
+                        elementId,
+                        start,
+                        end,
+                        event: eventName,
+                        details: details,
+                    });
+                }
+            });
+
+            if (playlist.length > 0) {
+                currentPlayIndex = 0;
+                startCurrentVideo();
             }
         });
-
-        if (playlist.length > 0) {
-            currentPlayIndex = 0;
-            startCurrentVideo();
-        }
-    });
+    }
     
     function startCurrentVideo() {
         clearAllHighlights();
@@ -139,9 +143,9 @@
         }
         
         // CAMBIO 2: Actualizamos el panel con la información de la jugada activa
-        nowPlayingEvent.textContent = currentPlay.event;
-        nowPlayingDetails.textContent = currentPlay.details;
-        nowPlayingPanel.classList.remove('hidden'); // Lo hacemos visible
+        if (nowPlayingEvent) nowPlayingEvent.textContent = currentPlay.event;
+        if (nowPlayingDetails) nowPlayingDetails.textContent = currentPlay.details;
+        if (nowPlayingPanel) nowPlayingPanel.classList.remove('hidden'); // Lo hacemos visible
 
         player.seekTo(currentPlay.start, true);
         player.playVideo();

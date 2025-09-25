@@ -115,6 +115,17 @@
         });
       </script>
     {% endif %}
+    {% if messages %}
+      <script>
+        {% for message in messages %}
+          Swal.fire({
+            icon: '{{ message.tags }}',
+            title: '{{ message }}',
+            showConfirmButton: false
+          });
+        {% endfor %}
+      </script>
+    {% endif %}
     </form>
 </div>
 

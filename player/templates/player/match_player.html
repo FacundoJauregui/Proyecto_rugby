@@ -18,9 +18,10 @@
             <option value="" {% if not filter_params.equipo %}selected{% endif %}>-- Por Equipo --</option>
             {% for option in equipo_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.equipo %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
           </select>
-          <select name="situacion" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option value="">-- Situación --</option>
-            {% for option in situacion_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.situacion %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
+          <!-- Reemplazo: Situación -> Jugada -->
+          <select name="jugada" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">-- Jugada --</option>
+            {% for option in jugada_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.jugada %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
           </select>
           <select name="zona_inicio" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
             <option value="">-- Zona Inicio --</option>
@@ -37,7 +38,7 @@
         </form>
       </div>
 
-      <!-- Botones -->
+      <!-- Controles -->
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
         <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Controles</h2>
         <div class="flex flex-col gap-2 mb-3">
@@ -46,8 +47,26 @@
             <button id="export-filters-btn" type="button" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">⬇️ Exportar filtradas</button>
             <button id="export-selected-btn" type="button" disabled class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">⬇️ Exportar seleccionadas</button>
           </div>
+
+          <!-- Nuevo: Deshacer Selección (borra selección en memoria solo en esta vista) -->
+          <div class="mt-3">
+            <button id="clear-selection-btn" type="button" class="w-full text-gray-900 bg-gray-200 hover:bg-gray-300 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">⟲ Deshacer Selección</button>
+          </div>
         </div>
       </div>
+
+      <!-- NUEVO: Cargar/Actualizar CSV (solo si no hay jugadas y el usuario está autorizado) -->
+      {% if can_upload_csv_on_match %}
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Actualizar Jugadas (CSV)</h2>
+        <form method="post" action="{% url 'player:upload_csv_match' pk=match.pk %}" enctype="multipart/form-data" class="flex items-center gap-2">
+          {% csrf_token %}
+          <input type="file" name="csv_file" accept=".csv" class="flex-1 text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600" required>
+          <button type="submit" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-4 py-2">Subir</button>
+        </form>
+        <p class="text-xs text-gray-500 mt-2">Admite UTF-8/Latin-1/Windows-1252. Antes de subir revisá la preview si aparece.</p>
+      </div>
+      {% endif %}
 
       <!-- Tabla -->
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 overflow-x-auto">
@@ -57,7 +76,7 @@
             <tr>
               <th class="p-2"><input type="checkbox" id="dt-select-all"></th>
               <th class="p-2">Equipo</th>
-              <th class="p-2">Situación</th>
+              <th class="p-2">Jugada</th>
               <th class="p-2">Zona Inicio</th>
               <th class="p-2">Zona Fin</th>
             </tr>
@@ -70,13 +89,34 @@
     <!-- Video: 75% -->
     <div class="video-container flex-1 lg:basis-3/4" style="min-width:0;">
       <div id="player" data-video-id="{{ match.video_id }}" class="w-full h-full bg-black rounded-lg"></div>
+      <!-- Panel Ahora Reproduciendo -->
+      <div id="now-playing-panel" class="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 hidden">
+        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Ahora reproduciendo</div>
+        <div id="now-playing-event" class="text-base font-semibold text-gray-900 dark:text-white mt-1">---</div>
+        <div id="now-playing-details" class="text-sm text-gray-600 dark:text-gray-300">Seleccioná jugadas y presioná play</div>
+      </div>
     </div>
   </div>
 </div>
 
+{% if messages %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    {% for message in messages %}
+      Swal.fire({
+        icon: '{{ message.tags|default:"info" }}',
+        title: '{{ message|escapejs }}',
+        showConfirmButton: false,
+        timer: 2500
+      });
+    {% endfor %}
+  });
+</script>
+{% endif %}
+
 {% block scripts %}
 <script>
-  // DataTables + selección persistente + estilo flowbite-like
+  // DataTables + selección en memoria (solo mientras permanezcas en esta vista)
   (function(){
     function waitForDT(cb, tries=20){
       if (window.DataTable) return cb();
@@ -85,15 +125,14 @@
     }
 
     waitForDT(function(){
-      const STORAGE_KEY = 'selectedPlays:match:{{ match.pk }}';
-      const loadSel = () => { try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]').map(String)); } catch { return new Set(); } };
-      const saveSel = (s) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(s))); } catch {} };
-      let selectedSet = loadSel();
+      // Persistimos SOLO en memoria. No usamos localStorage.
+      let selectedSet = new Set();
 
       const exportFiltersBtn = document.getElementById('export-filters-btn');
       const exportSelectedBtn = document.getElementById('export-selected-btn');
       const playBtn = document.getElementById('play-selection-btn');
       const dtSelectAll = document.getElementById('dt-select-all');
+      const clearSelectionBtn = document.getElementById('clear-selection-btn');
 
       const updateButtons = () => {
         if (exportSelectedBtn) exportSelectedBtn.disabled = selectedSet.size === 0;
@@ -110,8 +149,8 @@
         lengthChange: true,
         pageLength: 10,
         order: [[1, 'asc']],
-        info: false, // Oculta el mensaje "Showing 1 to 10..."
-        scrollX: true, // Fuerza barra horizontal
+        info: false,
+        scrollX: true,
         ajax: function(data, callback) {
           const params = new URLSearchParams(window.location.search);
           const payload = new URLSearchParams();
@@ -125,17 +164,14 @@
             payload.set('order[0][dir]', data.order[0].dir);
           }
           // Filtros actuales
-          ['equipo','situacion','zona_inicio','zona_fin'].forEach(k => {
+          ['equipo','jugada','zona_inicio','zona_fin'].forEach(k => {
             const v = params.get(k);
             if (v) payload.set(k, v);
           });
-          // Selección actual para marcar
-          if (selectedSet.size) payload.set('selected_ids', Array.from(selectedSet).join(','));
 
           fetch(`${ajaxUrl}?${payload.toString()}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
             .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-            .then(json => { console.log('DT data:', json); callback(json); 
-            })
+            .then(json => { callback(json); })
             .catch(err => {
               console.error('DataTables AJAX error:', err);
               callback({ draw: data.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
@@ -158,7 +194,6 @@
           { data: 7 },
         ],
         drawCallback: function(){
-          // Reaplicar estado del checkbox seleccionar todo según filas visibles
           const allVisible = Array.from(document.querySelectorAll('#plays-table .dt-play'));
           const allChecked = allVisible.length && allVisible.every(cb => cb.checked);
           if (dtSelectAll) dtSelectAll.checked = allChecked;
@@ -170,7 +205,6 @@
         if (e.target && e.target.classList.contains('dt-play')) {
           const id = String(e.target.value);
           if (e.target.checked) selectedSet.add(id); else selectedSet.delete(id);
-          saveSel(selectedSet);
           updateButtons();
         }
       });
@@ -184,7 +218,6 @@
             const id = String(cb.value);
             if (check) selectedSet.add(id); else selectedSet.delete(id);
           });
-          saveSel(selectedSet);
           updateButtons();
         });
       }
@@ -209,8 +242,40 @@
         });
       }
 
+      // Deshacer selección
+      if (clearSelectionBtn) {
+        clearSelectionBtn.addEventListener('click', () => {
+          // limpiar set en memoria y desmarcar checkboxes visibles
+          selectedSet.clear();
+          document.querySelectorAll('#plays-table .dt-play').forEach(cb => cb.checked = false);
+          if (dtSelectAll) dtSelectAll.checked = false;
+          updateButtons();
+          // feedback al usuario
+          if (window.Swal) {
+            Swal.fire({
+              icon: 'info',
+              title: 'Selección deshecha',
+              timer: 1200,
+              showConfirmButton: false
+            });
+          }
+        });
+      }
+
       updateButtons();
-      // Intento inicial de estilo por si DataTables ya renderizó
+
+      // Limpieza al salir de la página o al volver mediante bfcache
+      window.addEventListener('pagehide', () => {
+        selectedSet.clear();
+      });
+      window.addEventListener('pageshow', (e) => {
+        if (e.persisted) {
+          selectedSet.clear();
+          document.querySelectorAll('#plays-table .dt-play').forEach(cb => cb.checked = false);
+          if (dtSelectAll) dtSelectAll.checked = false;
+          updateButtons();
+        }
+      });
     });
   })();
 </script>

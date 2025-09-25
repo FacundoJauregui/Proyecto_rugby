@@ -12,8 +12,11 @@ from .models import Match, Play, Team, Profile
 # --- Configuración para el modelo User y Profile ---
 class ProfileInline(admin.StackedInline):
     model = Profile
+    fk_name = 'user'
     can_delete = False
     verbose_name_plural = 'perfiles'
+    extra = 0
+    max_num = 1
 
 class UserAdmin(BaseUserAdmin):
     inlines = (ProfileInline,)

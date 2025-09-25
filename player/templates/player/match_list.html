@@ -8,9 +8,11 @@
         <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Partidos Cargados</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Explorá los partidos agrupados por fecha de juego (sábados).</p>
     </div>
+    {% if user.is_staff %}
     <a href="{% url 'player:upload_analysis' %}" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">
         + Cargar Nuevo Análisis
     </a>
+    {% endif %}
 </div>
 
 {% if user.is_staff %}
@@ -126,6 +128,19 @@
         {% endif %}
     </ul>
 </nav>
+{% endif %}
+
+{% if messages %}
+  <script>
+    {% for message in messages %}
+      Swal.fire({
+        icon: '{{ message.tags }}',
+        title: '{{ message }}',
+        timer: 2500,
+        showConfirmButton: false
+      });
+    {% endfor %}
+  </script>
 {% endif %}
 
 <script>
