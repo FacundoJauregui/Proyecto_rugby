@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import User 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.conf import settings
 
 class Match(models.Model):
     # Quitamos 'title' y agregamos los equipos
@@ -146,3 +147,18 @@ def create_user_profile(sender, instance, created, **kwargs):
 def save_user_profile(sender, instance, **kwargs):
     if hasattr(instance, 'profile'):
         instance.profile.save()
+
+class SelectionPreset(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='selection_presets')
+    match = models.ForeignKey('player.Match', on_delete=models.CASCADE, related_name='selection_presets')
+    name = models.CharField(max_length=100)
+    play_ids = models.JSONField(default=list)  # lista de IDs de Play
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'match', 'name')
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.user.username} - match {self.match_id})"

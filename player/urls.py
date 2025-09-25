@@ -1,6 +1,6 @@
 # player/urls.py
 
-from django.urls import path
+from django.urls import path, include
 from django.views.generic import RedirectView
 from .views import (
     AnalysisUploadView, 
@@ -11,6 +11,8 @@ from .views import (
     WelcomeView,
     MatchPlaysDataView,  # nuevo endpoint JSON
     MatchCSVUploadView,  # NUEVO: endpoint para subir CSV desde el reproductor
+    MatchSelectionPresetListCreateView, 
+    MatchSelectionPresetDetailView
 )
 app_name = 'player'
 
@@ -40,4 +42,11 @@ urlpatterns = [
 
     # NUEVO: subir/actualizar CSV directamente en el reproductor
     path('matches/<int:pk>/upload-csv/', MatchCSVUploadView.as_view(), name='upload_csv_match'),
+
+    # API read-only
+    path('api/', include('player.api.urls')),  
+
+    # NUEVO: presets de selección de partidos
+    path('matches/<int:pk>/presets/', MatchSelectionPresetListCreateView.as_view(), name='match_presets'),
+    path('matches/<int:pk>/presets/<int:preset_id>/', MatchSelectionPresetDetailView.as_view(), name='match_preset_detail'),
 ]

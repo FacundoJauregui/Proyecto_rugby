@@ -651,3 +651,62 @@ class MatchCSVUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
         except Exception as e:
             messages.error(request, f"Error al procesar el archivo CSV: {e}")
         return redirect('player:play_match', pk=pk)
+
+from django.views import View
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt  # NO lo usaremos si enviamos CSRF correctamente
+from django.forms.models import model_to_dict
+import json
+
+from .models import SelectionPreset, Play, Match
+
+class MatchSelectionPresetListCreateView(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        # lista presets del usuario para el partido
+        presets = SelectionPreset.objects.filter(user=request.user, match_id=pk)\
+                    .values('id', 'name', 'created_at', 'updated_at')
+        return JsonResponse({'presets': list(presets)})
+
+    def post(self, request, pk):
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            return HttpResponseBadRequest('JSON inválido')
+
+        name = (data.get('name') or '').strip()
+        play_ids = data.get('play_ids') or []
+
+        if not name:
+            return HttpResponseBadRequest('El nombre es requerido')
+        if not isinstance(play_ids, list) or any(not isinstance(x, int) for x in play_ids):
+            return HttpResponseBadRequest('play_ids debe ser una lista de enteros')
+
+        # validar que las jugadas pertenezcan al partido
+        valid_ids = set(Play.objects.filter(match_id=pk, id__in=play_ids).values_list('id', flat=True))
+        if len(valid_ids) != len(set(play_ids)):
+            return HttpResponseBadRequest('Algunas jugadas no pertenecen al partido')
+
+        preset, created = SelectionPreset.objects.get_or_create(
+            user=request.user, match_id=pk, name=name,
+            defaults={'play_ids': list(valid_ids)}
+        )
+        if not created:
+            preset.play_ids = list(valid_ids)
+            preset.save(update_fields=['play_ids', 'updated_at'])
+
+        return JsonResponse({'id': preset.id, 'name': preset.name, 'updated_at': preset.updated_at})
+
+class MatchSelectionPresetDetailView(LoginRequiredMixin, View):
+    def get(self, request, pk, preset_id):
+        preset = get_object_or_404(SelectionPreset, id=preset_id, match_id=pk)
+        if preset.user_id != request.user.id and not request.user.is_staff:
+            return HttpResponseForbidden('Sin permisos')
+        return JsonResponse({'id': preset.id, 'name': preset.name, 'play_ids': preset.play_ids})
+
+    def delete(self, request, pk, preset_id):
+        preset = get_object_or_404(SelectionPreset, id=preset_id, match_id=pk)
+        if preset.user_id != request.user.id and not request.user.is_staff:
+            return HttpResponseForbidden('Sin permisos')
+        preset.delete()
+        return JsonResponse({'deleted': True})

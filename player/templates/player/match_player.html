@@ -55,6 +55,22 @@
         </div>
       </div>
 
+      <!-- INICIO: Presets de selección (movido a la columna izquierda) -->
+      <div id="presets-panel" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Presets de selección</h2>
+        <div class="space-y-2">
+          <select id="preset-select" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm">
+            <option value="" selected>Elegí un preset…</option>
+          </select>
+          <div class="flex gap-2">
+            <button id="preset-load-btn" class="flex-1 text-white bg-blue-700 hover:bg-blue-800 rounded-lg text-sm px-3 py-2 disabled:opacity-50" disabled>Cargar</button>
+            <button id="preset-delete-btn" class="text-white bg-red-600 hover:bg-red-700 rounded-lg text-sm px-3 py-2 disabled:opacity-50" disabled>Eliminar</button>
+          </div>
+          <button id="preset-save-btn" class="w-full text-gray-900 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm px-3 py-2">Guardar selección como…</button>
+        </div>
+      </div>
+      <!-- FIN: Presets de selección -->
+
       <!-- NUEVO: Cargar/Actualizar CSV (solo si no hay jugadas y el usuario está autorizado) -->
       {% if can_upload_csv_on_match %}
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
@@ -86,9 +102,9 @@
       </div>
     </div>
 
-    <!-- Video: 75% -->
+    <!-- Columna derecha: video (75%) -->
     <div class="video-container flex-1 lg:basis-3/4" style="min-width:0;">
-      <div id="player" data-video-id="{{ match.video_id }}" class="w-full h-full bg-black rounded-lg"></div>
+      <div id="player" data-video-id="{{ match.video_id }}" class="w-full h-[480px] bg-black rounded-lg"></div>
       <!-- Panel Ahora Reproduciendo -->
       <div id="now-playing-panel" class="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 hidden">
         <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Ahora reproduciendo</div>
@@ -127,6 +143,8 @@
     waitForDT(function(){
       // Persistimos SOLO en memoria. No usamos localStorage.
       let selectedSet = new Set();
+      // FIX: Exponer el set de selección en el objeto window para que otros scripts lo vean
+      window.selectedSet = selectedSet;
 
       const exportFiltersBtn = document.getElementById('export-filters-btn');
       const exportSelectedBtn = document.getElementById('export-selected-btn');
@@ -138,6 +156,8 @@
         if (exportSelectedBtn) exportSelectedBtn.disabled = selectedSet.size === 0;
         if (playBtn) playBtn.disabled = selectedSet.size === 0;
       };
+      // FIX: Exponer también la función para que el script de presets la pueda llamar
+      window.updateButtons = updateButtons;
 
       const ajaxUrl = `{% url 'player:plays_data' pk=match.pk %}`;
 
@@ -279,7 +299,113 @@
     });
   })();
 </script>
+<!-- Script de presets (usa window.selectedSet y window.updateButtons) -->
+<script>
+  (function(){
+    // Esperar a que el DOM esté listo
+    document.addEventListener('DOMContentLoaded', function() {
+      function getCookie(name) {
+        const value = `; ${document.cookie}`; const parts = value.split(`; ${name}=`); if (parts.length === 2) return parts.pop().split(';').shift();
+      }
+      const csrftoken = getCookie('csrftoken');
+      const matchId = {{ match.id }};
+
+      const presetSelect = document.getElementById('preset-select');
+      const btnLoad = document.getElementById('preset-load-btn');
+      const btnDelete = document.getElementById('preset-delete-btn');
+      const btnSave = document.getElementById('preset-save-btn');
+
+      function toast(icon, title, timer=1400) {
+        if (window.Swal) Swal.fire({icon, title, timer, showConfirmButton:false}); else console.log(icon, title);
+      }
+
+      function togglePresetActions() {
+        const hasSel = !!(presetSelect && presetSelect.value);
+        if (btnLoad) btnLoad.disabled = !hasSel;
+        if (btnDelete) btnDelete.disabled = !hasSel;
+      }
+
+      async function refreshPresets() {
+        try {
+          const res = await fetch(`/matches/${matchId}/presets/`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+          if (!res.ok) throw new Error('Error al cargar presets');
+          const data = await res.json();
+          if (!presetSelect) return;
+          presetSelect.innerHTML = '<option value="">Elegí un preset…</option>';
+          (data.presets || []).forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id; opt.textContent = p.name;
+            presetSelect.appendChild(opt);
+          });
+          togglePresetActions();
+        } catch (e) { console.error(e); }
+      }
+
+      if (presetSelect) presetSelect.addEventListener('change', togglePresetActions);
+
+      if (btnSave) btnSave.addEventListener('click', async () => {
+        const name = prompt('Nombre del preset:');
+        if (!name || !name.trim()) return;
+        const ids = Array.from((window.selectedSet||new Set())).map(x => parseInt(x,10)).filter(n => !isNaN(n));
+        if (!ids.length) return toast('warning','No hay jugadas seleccionadas para guardar.');
+        try {
+          const res = await fetch(`/matches/${matchId}/presets/`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken': csrftoken, 'X-Requested-With':'XMLHttpRequest'},
+            body: JSON.stringify({name: name.trim(), play_ids: ids})
+          });
+          if (!res.ok) throw new Error(await res.text());
+          await refreshPresets();
+          toast('success','Preset guardado');
+        } catch(e){ console.error(e); toast('error','No se pudo guardar el preset'); }
+      });
+
+      if (btnLoad) btnLoad.addEventListener('click', async () => {
+        const id = presetSelect && presetSelect.value;
+        if (!id) return;
+        try {
+          const res = await fetch(`/matches/${matchId}/presets/${id}/`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+          if (!res.ok) throw new Error('Error al cargar preset');
+          const data = await res.json();
+          const ids = (data.play_ids||[]).map(String);
+          // FIX: Usar la variable global directamente
+          const sel = window.selectedSet;
+          if (!sel) {
+            console.error('window.selectedSet no está definido');
+            return;
+          }
+          sel.clear(); 
+          ids.forEach(i => sel.add(i));
+          document.querySelectorAll('#plays-table input.dt-play').forEach(cb => {
+            const pid = (cb.value||'').toString(); cb.checked = sel.has(pid);
+          });
+          // FIX: Llamar a la función global
+          if (typeof window.updateButtons === 'function') window.updateButtons();
+          toast('success','Preset cargado en la selección');
+        } catch(e){ console.error(e); toast('error','No se pudo cargar el preset'); }
+      });
+
+      if (btnDelete) btnDelete.addEventListener('click', async () => {
+        const id = presetSelect && presetSelect.value;
+        if (!id) return;
+        if (!confirm('¿Estás seguro de que querés eliminar este preset?')) return;
+        try {
+          const res = await fetch(`/matches/${matchId}/presets/${id}/`, { method:'DELETE', headers:{'X-CSRFToken': csrftoken, 'X-Requested-With':'XMLHttpRequest'} });
+          if (!res.ok) throw new Error(await res.text());
+          await refreshPresets();
+          toast('success','Preset eliminado');
+        } catch(e){ console.error(e); toast('error','No se pudo eliminar el preset'); }
+      });
+
+      // Carga inicial
+      refreshPresets();
+    });
+  })();
+</script>
+
+<!-- FIX: Volver a agregar el script del reproductor de video -->
 <script src="{% static 'js/player.js' %}"></script>
+
 {% endblock %}
 
 {% endblock %}
