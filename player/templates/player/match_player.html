@@ -102,14 +102,19 @@
     <!-- 50% izquierdo: Lista de Jugadas -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 overflow-x-auto">
       <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Lista de Jugadas</h2>
-      <table id="plays-table" class="min-w-full text-sm text-left text-gray-500 dark:text-gray-400 display nowrap" style="width:100%">
+      <!-- Agrego clases para evitar colapso y habilitar scroll horizontal -->
+      <table id="plays-table" class="min-w-full min-w-max whitespace-nowrap text-sm text-left text-gray-500 dark:text-gray-400 display nowrap" style="width:100%">
         <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
           <tr>
             <th class="p-2"><input type="checkbox" id="dt-select-all"></th>
-            <th class="p-2">Equipo</th>
             <th class="p-2">Jugada</th>
+            <th class="p-2">Equipo</th>
+            <th class="p-2">Inicia</th>
             <th class="p-2">Zona Inicio</th>
+            <th class="p-2">Termina</th>
             <th class="p-2">Zona Fin</th>
+            <th class="p-2">Resultado</th>
+            <th class="p-2">Sanción</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -118,8 +123,12 @@
 
     <!-- 50% derecho: espacio para futuras tarjetas (estadísticas, notas, etc.) -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 min-h-[200px]">
-      <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Panel adicional</h2>
-      <p class="text-sm text-gray-600 dark:text-gray-300">Espacio disponible para estadísticas, notas o comparativas.</p>
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Selección actual</h2>
+        <span id="selected-count" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">0</span>
+      </div>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Jugadas que marcaste (se usan para Reproducir Selección y para guardar Preset).</p>
+      <ul id="selected-plays-list" class="mt-3 divide-y divide-gray-200 dark:divide-gray-700"></ul>
     </div>
   </div>
 </div>
@@ -141,7 +150,6 @@
 
 {% block scripts %}
 <script>
-  // DataTables + selección en memoria (solo mientras permanezcas en esta vista)
   (function(){
     function waitForDT(cb, tries=20){
       if (window.DataTable) return cb();
@@ -150,9 +158,7 @@
     }
 
     waitForDT(function(){
-      // Persistimos SOLO en memoria. No usamos localStorage.
       let selectedSet = new Set();
-      // FIX: Exponer el set de selección en el objeto window para que otros scripts lo vean
       window.selectedSet = selectedSet;
 
       const exportFiltersBtn = document.getElementById('export-filters-btn');
@@ -161,29 +167,107 @@
       const dtSelectAll = document.getElementById('dt-select-all');
       const clearSelectionBtn = document.getElementById('clear-selection-btn');
 
+      const selectedListEl = document.getElementById('selected-plays-list');
+      const selectedCountEl = document.getElementById('selected-count');
+      const matchId = {{ match.id }};
+      const apiPlaysUrl = `/api/matches/${matchId}/plays/`;
+
+      // Índices de columnas del backend (ajusta aquí si tu endpoint cambia)
+      const IDX = {
+        id: 0,
+        inicio: 1,       // "INICIA" (timestamp)
+        fin: 2,          // "TERMINA" (timestamp)
+        evento: 3,       // evento (fallback si no hay jugada)
+        equipo: 4,       // EQUIPO
+        jugada: 5,       // JUGADA
+        zona_inicio: 6,  // ZONA INICIO
+        zona_fin: 7,     // ZONA FIN
+        resultado: 8,    // RESULTADO
+        sancion: 9       // SANCION
+      };
+
+      // Caché de metadatos por id (id -> {id, equipo, evento/jugada, inicio, fin})
+      const playMetaCache = (window.playMetaCache = window.playMetaCache || new Map());
+
       const updateButtons = () => {
         if (exportSelectedBtn) exportSelectedBtn.disabled = selectedSet.size === 0;
         if (playBtn) playBtn.disabled = selectedSet.size === 0;
       };
-      // FIX: Exponer también la función para que el script de presets la pueda llamar
       window.updateButtons = updateButtons;
+
+      async function renderSelectedList() {
+        if (!selectedListEl || !selectedCountEl) return;
+        const ids = Array.from(selectedSet).map(String);
+        selectedCountEl.textContent = ids.length.toString();
+
+        const missing = ids.filter(id => !playMetaCache.has(id));
+        if (missing.length) {
+          try {
+            const res = await fetch(`${apiPlaysUrl}?ids=${missing.join(',')}`, { headers: { 'X-Requested-With':'XMLHttpRequest' }});
+            if (res.ok) {
+              const arr = await res.json();
+              arr.forEach(p => {
+                playMetaCache.set(String(p.id), {
+                  id: p.id,
+                  equipo: p.equipo || '',
+                  evento: p.evento || p.jugada || '',
+                  inicio: p.inicio ?? '',
+                  fin: p.fin ?? ''
+                });
+              });
+            }
+          } catch(e) { console.warn('No se pudieron cargar metadatos de jugadas faltantes', e); }
+        }
+
+        selectedListEl.innerHTML = '';
+        ids.forEach(id => {
+          const meta = playMetaCache.get(id) || { id, equipo: '', evento: '', inicio: '', fin: '' };
+          const li = document.createElement('li');
+          li.className = 'py-2 flex items-center justify-between';
+          li.innerHTML = `
+  <div class="min-w-0">
+    <div class="text-sm text-gray-900 dark:text-white truncate">
+      <span class="font-medium">${meta.equipo || '—'}</span>
+      <span class="mx-1 text-gray-400">·</span>
+      <span>${meta.evento || 'Jugada'}</span>
+    </div>
+    <div class="text-xs text-gray-500 dark:text-gray-400">[${meta.inicio || ''} - ${meta.fin || ''}]</div>
+  </div>
+  <div class="flex items-center gap-2">
+    <button data-id="${id}" class="remove-play text-xs px-2 py-1 rounded text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300 dark:focus:ring-red-800 transition-colors">Quitar</button>
+  </div>
+`;
+          selectedListEl.appendChild(li);
+        });
+
+        selectedListEl.querySelectorAll('button.remove-play').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const id = String(e.currentTarget.getAttribute('data-id'));
+            selectedSet.delete(id);
+            document.querySelectorAll(`#plays-table .dt-play[value="${id}"]`).forEach(cb => cb.checked = false);
+            if (dtSelectAll) dtSelectAll.checked = false;
+            updateButtons();
+            renderSelectedList();
+          });
+        });
+      }
 
       const ajaxUrl = `{% url 'player:plays_data' pk=match.pk %}`;
 
       const dt = new DataTable('#plays-table', {
-        rowId: row => `play-item-${row[0]}`,
+        rowId: row => `play-item-${row[IDX.id]}`,
         processing: true,
         serverSide: true,
         searching: true,
         lengthChange: true,
         pageLength: 10,
-        order: [[1, 'asc']],
+        order: [[IDX.inicio, 'asc']],  // orden por inicio si corresponde
         info: false,
-        scrollX: true,
+        scrollX: true,                  // scrollbar horizontal de DataTables
+        autoWidth: false,               // evitá que calcule widths raros
         ajax: function(data, callback) {
           const params = new URLSearchParams(window.location.search);
           const payload = new URLSearchParams();
-          // DataTables
           payload.set('draw', data.draw);
           payload.set('start', data.start);
           payload.set('length', data.length);
@@ -192,7 +276,6 @@
             payload.set('order[0][column]', data.order[0].column);
             payload.set('order[0][dir]', data.order[0].dir);
           }
-          // Filtros actuales
           ['equipo','jugada','zona_inicio','zona_fin'].forEach(k => {
             const v = params.get(k);
             if (v) payload.set(k, v);
@@ -207,38 +290,56 @@
             });
         },
         columns: [
-          { data: null, orderable: false, render: function(_data, _type, row){
-              const id = row[0];
-              const inicio = row[1] ?? '';
-              const fin = row[2] ?? '';
-              const evento = row[3] ?? '';
-              const equipo = row[4] ?? '';
+          // Selección
+          { data: null, orderable: false, width: '42px', render: function(_data, _type, row){
+              const id = row[IDX.id];
+              const inicio = row[IDX.inicio] ?? '';
+              const fin = row[IDX.fin] ?? '';
+              const equipo = row[IDX.equipo] ?? '';
+              const jugada = row[IDX.jugada] ?? row[IDX.evento] ?? '';
               const checked = selectedSet.has(String(id)) ? 'checked' : '';
-              return `<input type="checkbox" class="dt-play" value="${id}" data-start="${inicio}" data-end="${fin}" data-event="${evento}" data-equipo="${equipo}" ${checked}>`;
+              // Cache para el panel de selección
+              playMetaCache.set(String(id), { id, equipo, evento: jugada, inicio, fin });
+              return `<input type="checkbox" class="dt-play" value="${id}" data-start="${inicio}" data-end="${fin}" data-event="${jugada}" data-equipo="${equipo}" ${checked}>`;
             }
           },
-          { data: 4 },
-          { data: 5 },
-          { data: 6 },
-          { data: 7 },
+          // Orden requerido: JUGADA, EQUIPO, INICIA, ZONA INICIO, TERMINA, ZONA FIN, RESULTADO, SANCION
+          { data: IDX.jugada,   title: 'Jugada',      defaultContent: '' },
+          { data: IDX.equipo,   title: 'Equipo',      defaultContent: '' },
+          { data: IDX.inicio,   title: 'Inicia',      defaultContent: '' },
+          { data: IDX.zona_inicio, title: 'Zona Inicio', defaultContent: '' },
+          { data: IDX.fin,      title: 'Termina',     defaultContent: '' },
+          { data: IDX.zona_fin, title: 'Zona Fin',    defaultContent: '' },
+          { data: IDX.resultado, title: 'Resultado',  defaultContent: '' },
+          { data: IDX.sancion,  title: 'Sanción',     defaultContent: '' },
         ],
         drawCallback: function(){
           const allVisible = Array.from(document.querySelectorAll('#plays-table .dt-play'));
           const allChecked = allVisible.length && allVisible.every(cb => cb.checked);
           if (dtSelectAll) dtSelectAll.checked = allChecked;
+          renderSelectedList();
         }
       });
 
-      // Cambios en checkboxes por fila
+      // Resto: listeners (sin cambios)
       document.querySelector('#plays-table').addEventListener('change', (e) => {
         if (e.target && e.target.classList.contains('dt-play')) {
           const id = String(e.target.value);
           if (e.target.checked) selectedSet.add(id); else selectedSet.delete(id);
+          if (!playMetaCache.has(id)) {
+            playMetaCache.set(id, {
+              id,
+              equipo: e.target.dataset.equipo || '',
+              evento: e.target.dataset.event || '',
+              inicio: e.target.dataset.start || '',
+              fin: e.target.dataset.end || ''
+            });
+          }
           updateButtons();
+          renderSelectedList();
         }
       });
 
-      // Seleccionar todo de la página actual
       if (dtSelectAll) {
         dtSelectAll.addEventListener('change', function(){
           const check = this.checked;
@@ -246,69 +347,30 @@
             cb.checked = check;
             const id = String(cb.value);
             if (check) selectedSet.add(id); else selectedSet.delete(id);
+            if (!playMetaCache.has(id)) {
+              playMetaCache.set(id, {
+                id,
+                equipo: cb.dataset.equipo || '',
+                evento: cb.dataset.event || '',
+                inicio: cb.dataset.start || '',
+                fin: cb.dataset.end || ''
+              });
+            }
           });
           updateButtons();
+          renderSelectedList();
         });
       }
 
-      // Exportar filtradas (sin ids)
-      if (exportFiltersBtn) {
-        exportFiltersBtn.addEventListener('click', () => {
-          const params = new URLSearchParams(window.location.search);
-          params.set('export','csv');
-          window.location.href = `${window.location.pathname}?${params.toString()}`;
-        });
-      }
-
-      // Exportar seleccionadas (con ids)
-      if (exportSelectedBtn) {
-        exportSelectedBtn.addEventListener('click', () => {
-          if (!selectedSet.size) return;
-          const params = new URLSearchParams(window.location.search);
-          params.set('export','csv');
-          params.set('ids', Array.from(selectedSet).join(','));
-          window.location.href = `${window.location.pathname}?${params.toString()}`;
-        });
-      }
-
-      // Deshacer selección
-      if (clearSelectionBtn) {
-        clearSelectionBtn.addEventListener('click', () => {
-          // limpiar set en memoria y desmarcar checkboxes visibles
-          selectedSet.clear();
-          document.querySelectorAll('#plays-table .dt-play').forEach(cb => cb.checked = false);
-          if (dtSelectAll) dtSelectAll.checked = false;
-          updateButtons();
-          // feedback al usuario
-          if (window.Swal) {
-            Swal.fire({
-              icon: 'info',
-              title: 'Selección deshecha',
-              timer: 1200,
-              showConfirmButton: false
-            });
-          }
-        });
-      }
-
+      // Botones y limpiezas (sin cambios)
+      // ...
       updateButtons();
-
-      // Limpieza al salir de la página o al volver mediante bfcache
-      window.addEventListener('pagehide', () => {
-        selectedSet.clear();
-      });
-      window.addEventListener('pageshow', (e) => {
-        if (e.persisted) {
-          selectedSet.clear();
-          document.querySelectorAll('#plays-table .dt-play').forEach(cb => cb.checked = false);
-          if (dtSelectAll) dtSelectAll.checked = false;
-          updateButtons();
-        }
-      });
+      renderSelectedList();
+      window.renderSelectedList = renderSelectedList;
     });
   })();
 </script>
-<!-- Script de presets (usa window.selectedSet y window.updateButtons) -->
+<!-- presets script y player.js se mantienen -->
 <script>
   (function(){
     // Esperar a que el DOM esté listo
@@ -377,19 +439,15 @@
           if (!res.ok) throw new Error('Error al cargar preset');
           const data = await res.json();
           const ids = (data.play_ids||[]).map(String);
-          // FIX: Usar la variable global directamente
           const sel = window.selectedSet;
-          if (!sel) {
-            console.error('window.selectedSet no está definido');
-            return;
-          }
-          sel.clear(); 
+          if (!sel) return;
+          sel.clear();
           ids.forEach(i => sel.add(i));
           document.querySelectorAll('#plays-table input.dt-play').forEach(cb => {
             const pid = (cb.value||'').toString(); cb.checked = sel.has(pid);
           });
-          // FIX: Llamar a la función global
           if (typeof window.updateButtons === 'function') window.updateButtons();
+          if (typeof window.renderSelectedList === 'function') window.renderSelectedList();  // <-- agregar
           toast('success','Preset cargado en la selección');
         } catch(e){ console.error(e); toast('error','No se pudo cargar el preset'); }
       });

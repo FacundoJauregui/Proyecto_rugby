@@ -57,6 +57,28 @@ def validate_headers_strict(fieldnames):
             return False, f"El orden de columnas no es el esperado en la posición {idx}. Esperado: '{e}', recibido: '{h}'. Orden completo esperado: {', '.join(expected)}"
     return True, ''
 
+# NUEVO: validación flexible (acepta cualquier orden, ignora extras)
+def validate_headers_flexible(fieldnames):
+    """
+    Verifica que el CSV contenga todas las columnas requeridas (case-insensitive),
+    permite orden distinto y columnas extra. Devuelve (ok, msg, header_map).
+    header_map: dict con clave UPPER -> nombre exacto tal como aparece en CSV.
+    """
+    if not fieldnames:
+        return False, "CSV vacío o sin encabezados", {}
+    incoming = {h.strip().lower(): h for h in (fieldnames or [])}
+    header_map = {}
+    missing = []
+    for req in REQUIRED_HEADERS_ORDER:
+        key = req.strip().lower()
+        if key in incoming:
+            header_map[req.upper()] = incoming[key]
+        else:
+            missing.append(req)
+    if missing:
+        return False, f"Faltan columnas obligatorias en el CSV: {', '.join(missing)}", {}
+    return True, '', header_map
+
 # --- Función Auxiliar para la URL de YouTube (la dejamos como está) ---
 def get_youtube_video_id(url):
     # ... (código de la función sin cambios)
@@ -212,7 +234,7 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
                 data_set = read_uploaded_csv_text(csv_file)
                 io_string = io.StringIO(data_set)
                 reader = csv.DictReader(io_string)
-                ok, msg = validate_headers_strict(reader.fieldnames)
+                ok, msg, header_map = validate_headers_flexible(reader.fieldnames)
                 if not ok:
                     messages.error(self.request, msg)
                     return redirect('player:upload_analysis')
@@ -221,33 +243,33 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
                 for row in reader:
                     plays_to_create.append(Play(
                         match=match,
-                        jugada=row.get('JUGADA', '').strip(),
-                        arbitro=row.get('ARBITRO', '').strip(),
-                        canal_inicio=row.get('CANAL INICIO', '').strip(),
-                        evento=row.get('EVENTO', '').strip(),
-                        equipo=row.get('EQUIPO', '').strip(),
-                        fin=parse_time_to_seconds(row.get('FIN', '')),
-                        ficha=row.get('FICHA', '').strip(),
-                        inicia=row.get('INICIA', '').strip(),
-                        inicio=parse_time_to_seconds(row.get('INICIO', '')),
-                        marcador_final=row.get('MARCADOR_FINAL', '').strip(),
-                        termina=row.get('TERMINA', '').strip(),
-                        tiempo=row.get('TIEMPO', '').strip(),
-                        torneo=row.get('TORNEO', '').strip(),
-                        zona_fin=row.get('ZONA FIN', '').strip(),
-                        zona_inicio=row.get('ZONA INICIO', '').strip(),
-                        resultado=row.get('RESULTADO', '').strip(),
-                        jugadores=row.get('JUGADORES', '').strip(),
-                        sigue_con=row.get('SIGUE CON', '').strip(),
-                        pos_tiro=row.get('POS TIRO', '').strip(),
-                        set=row.get('SET', '').strip(),
-                        tiro=row.get('TIRO', '').strip(),
-                        tipo=row.get('TIPO', '').strip(),
-                        accion=row.get('ACCION', '').strip(),
-                        termina_en=row.get('TERMINA EN', '').strip(),
-                        sancion=row.get('SANCION', '').strip(),
-                        situacion=row.get('SITUACION', '').strip(),
-                        transicion=row.get('TRANSICION', '').strip(),
+                        jugada=(row.get(header_map['JUGADA']) or '').strip(),
+                        arbitro=(row.get(header_map['ARBITRO']) or '').strip(),
+                        canal_inicio=(row.get(header_map['CANAL INICIO']) or '').strip(),
+                        evento=(row.get(header_map['EVENTO']) or '').strip(),
+                        equipo=(row.get(header_map['EQUIPO']) or '').strip(),
+                        fin=parse_time_to_seconds(row.get(header_map['FIN']) or ''),
+                        ficha=(row.get(header_map['FICHA']) or '').strip(),
+                        inicia=(row.get(header_map['INICIA']) or '').strip(),
+                        inicio=parse_time_to_seconds(row.get(header_map['INICIO']) or ''),
+                        marcador_final=(row.get(header_map['MARCADOR_FINAL']) or '').strip(),
+                        termina=(row.get(header_map['TERMINA']) or '').strip(),
+                        tiempo=(row.get(header_map['TIEMPO']) or '').strip(),
+                        torneo=(row.get(header_map['TORNEO']) or '').strip(),
+                        zona_fin=(row.get(header_map['ZONA FIN']) or '').strip(),
+                        zona_inicio=(row.get(header_map['ZONA INICIO']) or '').strip(),
+                        resultado=(row.get(header_map['RESULTADO']) or '').strip(),
+                        jugadores=(row.get(header_map['JUGADORES']) or '').strip(),
+                        sigue_con=(row.get(header_map['SIGUE CON']) or '').strip(),
+                        pos_tiro=(row.get(header_map['POS TIRO']) or '').strip(),
+                        set=(row.get(header_map['SET']) or '').strip(),
+                        tiro=(row.get(header_map['TIRO']) or '').strip(),
+                        tipo=(row.get(header_map['TIPO']) or '').strip(),
+                        accion=(row.get(header_map['ACCION']) or '').strip(),
+                        termina_en=(row.get(header_map['TERMINA EN']) or '').strip(),
+                        sancion=(row.get(header_map['SANCION']) or '').strip(),
+                        situacion=(row.get(header_map['SITUACION']) or '').strip(),
+                        transicion=(row.get(header_map['TRANSICION']) or '').strip(),
                     ))
                     count += 1
                 if plays_to_create:
@@ -600,7 +622,7 @@ class MatchCSVUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
             text = read_uploaded_csv_text(uploaded)
             io_string = io.StringIO(text)
             reader = csv.DictReader(io_string)
-            ok, msg = validate_headers_strict(reader.fieldnames)
+            ok, msg, header_map = validate_headers_flexible(reader.fieldnames)
             if not ok:
                 messages.error(request, msg)
                 return redirect('player:play_match', pk=pk)
@@ -610,33 +632,33 @@ class MatchCSVUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
             for row in reader:
                 plays_to_create.append(Play(
                     match=match,
-                    jugada=row.get('JUGADA', '').strip(),
-                    arbitro=row.get('ARBITRO', '').strip(),
-                    canal_inicio=row.get('CANAL INICIO', '').strip(),
-                    evento=row.get('EVENTO', '').strip(),
-                    equipo=row.get('EQUIPO', '').strip(),
-                    fin=parse_time_to_seconds(row.get('FIN', '')),
-                    ficha=row.get('FICHA', '').strip(),
-                    inicia=row.get('INICIA', '').strip(),
-                    inicio=parse_time_to_seconds(row.get('INICIO', '')),
-                    marcador_final=row.get('MARCADOR_FINAL', '').strip(),
-                    termina=row.get('TERMINA', '').strip(),
-                    tiempo=row.get('TIEMPO', '').strip(),
-                    torneo=row.get('TORNEO', '').strip(),
-                    zona_fin=row.get('ZONA FIN', '').strip(),
-                    zona_inicio=row.get('ZONA INICIO', '').strip(),
-                    resultado=row.get('RESULTADO', '').strip(),
-                    jugadores=row.get('JUGADORES', '').strip(),
-                    sigue_con=row.get('SIGUE CON', '').strip(),
-                    pos_tiro=row.get('POS TIRO', '').strip(),
-                    set=row.get('SET', '').strip(),
-                    tiro=row.get('TIRO', '').strip(),
-                    tipo=row.get('TIPO', '').strip(),
-                    accion=row.get('ACCION', '').strip(),
-                    termina_en=row.get('TERMINA EN', '').strip(),
-                    sancion=row.get('SANCION', '').strip(),
-                    situacion=row.get('SITUACION', '').strip(),
-                    transicion=row.get('TRANSICION', '').strip(),
+                    jugada=(row.get(header_map['JUGADA']) or '').strip(),
+                    arbitro=(row.get(header_map['ARBITRO']) or '').strip(),
+                    canal_inicio=(row.get(header_map['CANAL INICIO']) or '').strip(),
+                    evento=(row.get(header_map['EVENTO']) or '').strip(),
+                    equipo=(row.get(header_map['EQUIPO']) or '').strip(),
+                    fin=parse_time_to_seconds(row.get(header_map['FIN']) or ''),
+                    ficha=(row.get(header_map['FICHA']) or '').strip(),
+                    inicia=(row.get(header_map['INICIA']) or '').strip(),
+                    inicio=parse_time_to_seconds(row.get(header_map['INICIO']) or ''),
+                    marcador_final=(row.get(header_map['MARCADOR_FINAL']) or '').strip(),
+                    termina=(row.get(header_map['TERMINA']) or '').strip(),
+                    tiempo=(row.get(header_map['TIEMPO']) or '').strip(),
+                    torneo=(row.get(header_map['TORNEO']) or '').strip(),
+                    zona_fin=(row.get(header_map['ZONA FIN']) or '').strip(),
+                    zona_inicio=(row.get(header_map['ZONA INICIO']) or '').strip(),
+                    resultado=(row.get(header_map['RESULTADO']) or '').strip(),
+                    jugadores=(row.get(header_map['JUGADORES']) or '').strip(),
+                    sigue_con=(row.get(header_map['SIGUE CON']) or '').strip(),
+                    pos_tiro=(row.get(header_map['POS TIRO']) or '').strip(),
+                    set=(row.get(header_map['SET']) or '').strip(),
+                    tiro=(row.get(header_map['TIRO']) or '').strip(),
+                    tipo=(row.get(header_map['TIPO']) or '').strip(),
+                    accion=(row.get(header_map['ACCION']) or '').strip(),
+                    termina_en=(row.get(header_map['TERMINA EN']) or '').strip(),
+                    sancion=(row.get(header_map['SANCION']) or '').strip(),
+                    situacion=(row.get(header_map['SITUACION']) or '').strip(),
+                    transicion=(row.get(header_map['TRANSICION']) or '').strip(),
                 ))
                 count += 1
 
