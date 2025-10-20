@@ -301,21 +301,25 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
             if last_match:
                 context['match_pk'] = last_match.pk
 
-        match = self.object
+        # Determinar si mostrar el bloque de subir CSV en el reproductor del partido
         user = self.request.user
-
-        # Nuevo: permitir subir CSV en la vista del partido SOLO si
-        #  - el partido NO tiene jugadas todavía (match.plays.exists() == False)
-        #  - y el usuario está autorizado (staff o entrenador)
-        has_plays = match.plays.exists()
         can_upload = False
         if user.is_authenticated:
             if user.is_staff:
                 can_upload = True
             else:
                 profile = getattr(user, 'profile', None)
-                if profile and profile.role == 'COACH':  # entrenador
+                if profile and profile.role == 'COACH':
                     can_upload = True
+
+        has_plays = False
+        match_pk = context.get('match_pk')
+        if match_pk:
+            try:
+                match_obj = Match.objects.get(pk=match_pk)
+                has_plays = match_obj.plays.exists()
+            except Match.DoesNotExist:
+                has_plays = False
 
         context['can_upload_csv_on_match'] = (not has_plays) and can_upload
 
@@ -507,10 +511,11 @@ class MatchListView(LoginRequiredMixin, ListView):
                 date_to = datetime.date.fromisoformat(date_to_str)
             except ValueError:
                 messages.warning(self.request, "Fecha 'Hasta' inválida. Use AAAA-MM-DD.")
+        # Filtrar por la fecha real del partido (match_date) para coherencia con la UI
         if date_from:
-            queryset = queryset.filter(created_at__date__gte=date_from)
+            queryset = queryset.filter(match_date__gte=date_from)
         if date_to:
-            queryset = queryset.filter(created_at__date__lte=date_to)
+            queryset = queryset.filter(match_date__lte=date_to)
 
         # --- Anotar resultado del partido desde Play (primer valor no vacío) ---
         # Antes: resultado -> Ahora: marcador_final
@@ -548,7 +553,8 @@ class MatchListView(LoginRequiredMixin, ListView):
 class MatchPlaysDataView(LoginRequiredMixin, View):
     def get(self, request, pk):
         match = get_object_or_404(Match, pk=pk)
-        plays = Play.objects.filter(match=match).select_related('match')
+        base_qs = Play.objects.filter(match=match).select_related('match')
+        plays = base_qs
 
         # Aplicar filtros (situacion -> jugada)
         filters = {
@@ -561,16 +567,39 @@ class MatchPlaysDataView(LoginRequiredMixin, View):
             if value:
                 plays = plays.filter(**{field: value})
 
-        # Ordenar según DataTables (col 2 ahora es 'jugada')
+        # Búsqueda global (DataTables search[value])
+        search_value = request.GET.get('search[value]') or request.GET.get('search')
+        if search_value:
+            sv = search_value.strip()
+            if sv:
+                plays = plays.filter(
+                    Q(jugada__icontains=sv)
+                    | Q(evento__icontains=sv)
+                    | Q(equipo__icontains=sv)
+                    | Q(zona_inicio__icontains=sv)
+                    | Q(zona_fin__icontains=sv)
+                    | Q(resultado__icontains=sv)
+                    | Q(sancion__icontains=sv)
+                )
+
+        # Ordenar según DataTables columnas visibles en el front
+        # Columnas front (índices): 0 checkbox, 1 Jugada, 2 Equipo, 3 Inicia, 4 Zona Inicio, 5 Termina, 6 Zona Fin, 7 Resultado, 8 Sanción
         order_column_map = {
-            1: 'equipo',
-            2: 'jugada',
-            3: 'zona_inicio',
-            4: 'zona_fin',
+            1: 'jugada',
+            2: 'equipo',
+            3: 'inicio',
+            4: 'zona_inicio',
+            5: 'fin',
+            6: 'zona_fin',
+            7: 'resultado',
+            8: 'sancion',
         }
-        order_col_index = int(request.GET.get('order[0][column]', 1))
+        try:
+            order_col_index = int(request.GET.get('order[0][column]', 3))
+        except (TypeError, ValueError):
+            order_col_index = 3
         order_dir = request.GET.get('order[0][dir]', 'asc')
-        order_field = order_column_map.get(order_col_index, 'equipo')
+        order_field = order_column_map.get(order_col_index, 'inicio')
         if order_dir == 'desc':
             order_field = f'-{order_field}'
         plays = plays.order_by(order_field)
@@ -580,7 +609,7 @@ class MatchPlaysDataView(LoginRequiredMixin, View):
         length = int(request.GET.get('length', 10))
         plays_page = plays[start:start + length]
 
-        # Construir respuesta JSON (índice 5 ahora es 'jugada')
+        # Construir respuesta JSON (ingresamos 'resultado' y 'sancion')
         data = [
             [
                 play.id,
@@ -591,14 +620,24 @@ class MatchPlaysDataView(LoginRequiredMixin, View):
                 play.jugada,
                 play.zona_inicio,
                 play.zona_fin,
+                play.resultado,
+                play.sancion,
             ]
             for play in plays_page
         ]
 
+        # Totales para DataTables
+        try:
+            draw = int(request.GET.get('draw', 0))
+        except (TypeError, ValueError):
+            draw = 0
+        records_total = base_qs.count()
+        records_filtered = plays.count()
+
         response = {
-            'draw': int(request.GET.get('draw', 0)),
-            'recordsTotal': plays.count(),
-            'recordsFiltered': plays.count(),
+            'draw': draw,
+            'recordsTotal': records_total,
+            'recordsFiltered': records_filtered,
             'data': data,
         }
         return JsonResponse(response)
