@@ -21,14 +21,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-rj(y$$3w@t4%1cm*v6$#hzsn%^1)7b&(6^hv7a-8_8lk7vi-f='
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-rj(y$$3w@t4%1cm*v6$#hzsn%^1)7b&(6^hv7a-8_8lk7vi-f=')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
-ALLOWED_HOSTS = []
+# Comma-separated list, e.g. "example.com,api.example.com"
+_allowed_hosts = os.getenv('DJANGO_ALLOWED_HOSTS', '').strip()
+ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts.split(',') if h.strip()] or []
 
-CSRF_TRUSTED_ORIGINS = [
+# Comma-separated with scheme, e.g. "https://example.com,https://api.example.com"
+_csrf_origins = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').strip()
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()] or [
     'http://127.0.0.1:8000',
     'http://localhost:8000',
 ]
@@ -52,6 +56,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # WhiteNoise solo en producción; evita fallos en local si no está instalado
+    # Se inyecta más abajo si DEBUG es False
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -59,6 +65,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+if not DEBUG:
+    # Insertar WhiteNoise inmediatamente después de SecurityMiddleware
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 
 ROOT_URLCONF = 'rugby_project.urls'
 
@@ -85,12 +95,14 @@ WSGI_APPLICATION = 'rugby_project.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',   # Le decimos que use el motor de PostgreSQL
-        'NAME': 'rugby_player_db',                   # El nombre EXACTO de la base de datos que creaste
-        'USER': 'postgres',                          # Tu usuario de PostgreSQL (suele ser 'postgres')
-        'PASSWORD': '141304',   # La contraseña que pusiste al instalar PostgreSQL
-        'HOST': 'localhost',                         # Como la base de datos está en tu máquina, es 'localhost'
-        'PORT': '5432',                              # El puerto por defecto de PostgreSQL
+        # Permite override por variables de entorno para Cloud SQL / proxy
+        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+        'NAME': os.getenv('DB_NAME', 'rugby_player_db'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', '141304'),
+        # Para Cloud SQL Auth Proxy en local: HOST=127.0.0.1, PORT=5433
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -130,8 +142,12 @@ USE_TZ = True
 
 # Archivos estáticos (CSS, JavaScript, Imágenes)
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')] # Directorio de estáticos del proyecto
-# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # Descomentar para producción
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]  # Estáticos del proyecto en desarrollo
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')    # Donde collectstatic los recopila (para prod)
+if DEBUG:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+else:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Archivos subidos por usuarios
 MEDIA_URL = '/media/'
@@ -140,6 +156,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media') # Directorio donde se guardan los a
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Cloud Run / reverse proxy: confiar en cabecera de protocolo para HTTPS
+# Evita redirecciones incorrectas y asegura que request.is_secure() funcione tras el proxy
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

@@ -36,6 +36,14 @@ class Match(models.Model):
             ),
         ]
 
+    def save(self, *args, **kwargs):
+        # Normalizar nombres de equipos en MAYÚSCULAS al guardar
+        if self.home_team:
+            self.home_team = self.home_team.strip().upper()
+        if self.away_team:
+            self.away_team = self.away_team.strip().upper()
+        super().save(*args, **kwargs)
+
 # Modelo de Jugada ÚNICO Y UNIFICADO
 class Play(models.Model):
     match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='plays')
@@ -43,7 +51,8 @@ class Play(models.Model):
     # Orden final requerido por el CSV:
     jugada = models.CharField(max_length=255, blank=True, verbose_name="Jugada")
     arbitro = models.CharField(max_length=255, blank=True, verbose_name="Arbitro")
-    canal_inicio = models.CharField(max_length=100, blank=True, verbose_name="Canal Inicio")
+    # Renombrado: canal_inicio -> canal_de_inicio
+    canal_de_inicio = models.CharField(max_length=100, blank=True, verbose_name="Canal de Inicio")
     evento = models.CharField(max_length=255, blank=True, verbose_name="Evento", db_index=True)
     equipo = models.CharField(max_length=255, blank=True, verbose_name="Equipo", db_index=True)
     fin = models.DecimalField(max_digits=9, decimal_places=3, verbose_name="Fin (segundos)", help_text="Segundo exacto de fin (ms)")
@@ -68,6 +77,11 @@ class Play(models.Model):
     sancion = models.CharField(max_length=100, blank=True, verbose_name="Sancion", db_index=True)
     situacion = models.CharField(max_length=100, blank=True, verbose_name="Situacion", db_index=True)
     transicion = models.CharField(max_length=100, blank=True, verbose_name="Transicion", db_index=True)
+    # Nuevos campos pedidos
+    situacion_penal = models.CharField(max_length=100, blank=True, verbose_name="Situación Penal", db_index=True)
+    nueva_categoria = models.CharField(max_length=100, blank=True, verbose_name="Nueva Categoría", db_index=True)
+    acercar = models.CharField(max_length=50, blank=True, verbose_name="Acercar")
+    alejar = models.CharField(max_length=50, blank=True, verbose_name="Alejar")
 
     def __str__(self):
         return f"{self.jugada} - {self.equipo}"

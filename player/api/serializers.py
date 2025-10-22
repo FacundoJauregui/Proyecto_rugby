@@ -5,11 +5,12 @@ class PlaySerializer(serializers.ModelSerializer):
     class Meta:
         model = Play
         fields = [
-            'id', 'jugada', 'arbitro', 'canal_inicio', 'evento', 'equipo',
+            'id', 'jugada', 'arbitro', 'canal_de_inicio', 'evento', 'equipo',
             'fin', 'ficha', 'inicia', 'inicio', 'marcador_final', 'termina',
             'tiempo', 'torneo', 'zona_fin', 'zona_inicio', 'resultado',
             'jugadores', 'sigue_con', 'pos_tiro', 'set', 'tiro', 'tipo',
-            'accion', 'termina_en', 'sancion', 'situacion', 'transicion'
+            'accion', 'termina_en', 'sancion', 'situacion', 'transicion',
+            'situacion_penal', 'nueva_categoria', 'acercar', 'alejar'
         ]
 
 class MatchSerializer(serializers.ModelSerializer):

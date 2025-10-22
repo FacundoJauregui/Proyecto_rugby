@@ -67,14 +67,8 @@
                     btn.style.filter = 'none';
                     btn.style.visibility = 'visible';
                   });
-                  if (confirmBtn) {
-                    confirmBtn.style.backgroundColor = '#1d4ed8';
-                    confirmBtn.style.color = '#fff';
-                  }
-                  if (cancelBtn) {
-                    cancelBtn.style.backgroundColor = '#6b7280';
-                    cancelBtn.style.color = '#fff';
-                  }
+                  if (confirmBtn) { confirmBtn.style.backgroundColor = '#1d4ed8'; confirmBtn.style.color = '#fff'; }
+                  if (cancelBtn) { cancelBtn.style.backgroundColor = '#6b7280'; cancelBtn.style.color = '#fff'; }
                 }
               }).then((result) => {
                 if (result.isConfirmed) {
@@ -86,7 +80,7 @@
             {% elif "warning" in message.tags %}
               Swal.fire({
                 icon: 'warning',
-                title: 'Partido duplicado',
+                title: 'Advertencia',
                 text: '{{ message|escapejs }}',
                 showConfirmButton: true,
                 confirmButtonText: 'Entendido',
@@ -105,7 +99,34 @@
                     btn.style.opacity = '1';
                     btn.style.filter = 'none';
                     btn.style.visibility = 'visible';
-                    btn.style.backgroundColor = '#f59e0b'; // amarillo anaranjado
+                    btn.style.backgroundColor = '#1d4ed8';
+                    btn.style.color = '#fff';
+                  }
+                }
+              });
+            {% elif "error" in message.tags %}
+              Swal.fire({
+                icon: 'error',
+                title: 'Error al procesar el CSV',
+                html: '<pre style="text-align:left;white-space:pre-wrap">' + '{{ message|escapejs }}' + '</pre>',
+                confirmButtonText: 'Entendido',
+                position: 'center',
+                buttonsStyling: true,
+                showConfirmButton: true,
+                didOpen: () => {
+                  const btn = Swal.getConfirmButton();
+                  if (btn) {
+                    btn.style.display = 'inline-flex';
+                    btn.style.alignItems = 'center';
+                    btn.style.justifyContent = 'center';
+                    btn.style.minWidth = '130px';
+                    btn.style.fontWeight = '600';
+                    btn.style.border = 'none';
+                    btn.style.boxShadow = 'none';
+                    btn.style.opacity = '1';
+                    btn.style.filter = 'none';
+                    btn.style.visibility = 'visible';
+                    btn.style.backgroundColor = '#1d4ed8';
                     btn.style.color = '#fff';
                   }
                 }

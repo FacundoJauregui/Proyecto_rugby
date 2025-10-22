@@ -9,6 +9,8 @@
     let playlist = [];
     let currentPlayIndex = 0;
     let timeChecker;
+    // Evitar que el navegador restaure la posición de scroll automáticamente al recargar/navegar
+    try { if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; } } catch(_e) {}
 
     // 3. Funciones de la API de YouTube (onYouTubeIframeAPIReady, onPlayerReady, onStateChange, checkTime - sin cambios)
     function onYouTubeIframeAPIReady() {
@@ -78,7 +80,12 @@
 
     const playSelectionBtn = document.getElementById('play-selection-btn');
     if (playSelectionBtn) {
-        playSelectionBtn.addEventListener('click', () => {
+        playSelectionBtn.addEventListener('click', (ev) => {
+            // Evitamos que el navegador haga cualquier scroll/focus implícito
+            if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+            if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+            const playerDiv = document.getElementById('player');
+
             clearAllHighlights(); 
             resetNowPlayingPanel(); // Reseteamos el panel al iniciar
 
@@ -93,14 +100,14 @@
                 let end = parseFloat(checkbox.dataset.end);
                 let eventName = '';
                 let details = '';
+                // Eliminamos el vínculo visual con filas de la tabla
                 let elementId = '';
 
                 if (checkbox.classList.contains('dt-play')) {
                     // DataTables: datos vienen en data-*
                     eventName = checkbox.dataset.event || '';
                     details = checkbox.dataset.equipo || '';
-                    const row = checkbox.closest('tr');
-                    elementId = row ? row.id : '';
+                    // No asociamos fila para evitar resaltados o scroll
                 } else {
                     // Lista clásica original
                     const label = checkbox.nextElementSibling;
@@ -110,8 +117,7 @@
                         eventName = e ? e.textContent : '';
                         details = d ? d.textContent : '';
                     }
-                    const container = checkbox.closest('[id^="play-item-"]') || checkbox.parentElement;
-                    elementId = container ? container.id : '';
+                    // Tampoco asociamos contenedor
                 }
 
                 if (!isNaN(start) && !isNaN(end)) {
@@ -128,6 +134,7 @@
             if (playlist.length > 0) {
                 currentPlayIndex = 0;
                 startCurrentVideo();
+                // No realizar ningún scroll automático
             }
         });
     }
@@ -135,17 +142,14 @@
     function startCurrentVideo() {
         clearAllHighlights();
         const currentPlay = playlist[currentPlayIndex];
-
-        const currentElement = document.getElementById(currentPlay.elementId);
-        if (currentElement) {
-            currentElement.classList.add('is-playing');
-            currentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        // Resaltado en tabla desactivado intencionalmente
         
         // CAMBIO 2: Actualizamos el panel con la información de la jugada activa
         if (nowPlayingEvent) nowPlayingEvent.textContent = currentPlay.event;
         if (nowPlayingDetails) nowPlayingDetails.textContent = currentPlay.details;
         if (nowPlayingPanel) nowPlayingPanel.classList.remove('hidden'); // Lo hacemos visible
+
+        // No realizar ningún scroll automático al cambiar de jugada
 
         player.seekTo(currentPlay.start, true);
         player.playVideo();
@@ -185,6 +189,16 @@
                 } else {
                     player.playVideo();
                 }
+                break;
+
+            case 'ArrowDown':
+            case 'ArrowUp':
+            case 'PageDown':
+            case 'PageUp':
+            case 'Home':
+            case 'End':
+                // Evitar que estas teclas muevan la página mientras estamos en el reproductor
+                event.preventDefault();
                 break;
 
             case 'ArrowRight':

@@ -101,10 +101,63 @@
     {% endif %}
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
       {% for match in group.list %}
-        <a href="{% url 'player:play_match' pk=match.id %}" class="block max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
-            <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{{ match.home_team }} vs. {{ match.away_team }}{% if match.match_result %} ({{ match.match_result }}){% endif %}</h5>
-            <p class="font-normal text-sm text-gray-500 dark:text-gray-400">Cargado: {{ match.created_at|date:"d M Y" }}</p>
-        </a>
+        <div class="relative max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
+          <div class="flex items-start">
+            <a href="{% url 'player:play_match' pk=match.id %}" class="group inline-flex items-center gap-2">
+              <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white group-hover:underline">{{ match.home_team }} vs. {{ match.away_team }}{% if match.match_result %} ({{ match.match_result }}){% endif %}</h5>
+              {% if not match.has_plays %}
+                <span class="mb-2 text-[11px] px-2 py-0.5 rounded-full border border-amber-400/50 text-amber-700 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-500/10">Sin jugadas</span>
+              {% endif %}
+            </a>
+            {% if user.is_staff %}
+              <button id="kebabBtn-{{ match.id }}" data-dropdown-toggle="kebabMenu-{{ match.id }}" class="absolute top-2 right-2 inline-flex items-center justify-center p-2.5 leading-none text-sm font-medium text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 overflow-visible" type="button" aria-expanded="false">
+                <svg class="w-6 h-6" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 5a1.75 1.75 0 1 1 0 3.5A1.75 1.75 0 0 1 12 5Zm0 5.75a1.75 1.75 0 1 1 0 3.5 1.75 1.75 0 0 1 0-3.5Zm0 5.75a1.75 1.75 0 1 1 0 3.5 1.75 1.75 0 0 1 0-3.5Z"/>
+                </svg>
+                <span class="sr-only">Abrir menú</span>
+              </button>
+              <div id="kebabMenu-{{ match.id }}" class="z-20 hidden absolute right-2 top-14 text-base list-none bg-white divide-y divide-gray-100 rounded-lg shadow w-44 dark:bg-gray-700">
+                <ul class="py-2" aria-labelledby="kebabBtn-{{ match.id }}">
+                  <li>
+                    <button type="button" data-modal-target="uploadCsvModal-{{ match.id }}" data-modal-toggle="uploadCsvModal-{{ match.id }}" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600">Cargar/Actualizar CSV</button>
+                  </li>
+                </ul>
+              </div>
+            {% endif %}
+          </div>
+          <p class="font-normal text-sm text-gray-500 dark:text-gray-400">Cargado: {{ match.created_at|date:"d M Y" }}</p>
+        </div>
+
+        {% if user.is_staff %}
+        <!-- Modal de carga CSV por partido -->
+        <div id="uploadCsvModal-{{ match.id }}" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+          <div class="relative p-4 w-full max-w-md max-h-full">
+            <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+              <div class="flex items-center justify-between p-4 border-b rounded-t dark:border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Cargar/Actualizar CSV</h3>
+                <button type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-700 dark:hover:text-white" data-modal-hide="uploadCsvModal-{{ match.id }}">
+                  <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1l12 12M13 1 1 13"/></svg>
+                  <span class="sr-only">Cerrar</span>
+                </button>
+              </div>
+              <div class="p-4">
+                <form method="post" action="{% url 'player:upload_csv_match' pk=match.id %}" enctype="multipart/form-data" class="space-y-4">
+                  {% csrf_token %}
+                  <div>
+                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Archivo CSV</label>
+                    <input type="file" name="csv_file" accept=".csv" required class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600" />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Admite UTF-8/UTF-16/Windows-1252; delimitadores: coma, ;, tab, |</p>
+                  </div>
+                  <div class="flex justify-end gap-2">
+                    <button type="button" data-modal-hide="uploadCsvModal-{{ match.id }}" class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm rounded-lg text-white bg-blue-700 hover:bg-blue-800">Subir</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
       {% endfor %}
     </div>
   {% endfor %}

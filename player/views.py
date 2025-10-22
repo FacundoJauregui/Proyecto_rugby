@@ -11,13 +11,14 @@ from .models import Match, Play
 from django.core.paginator import Paginator
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import reverse_lazy
-from django.db.models import Q, OuterRef, Subquery
+from django.db.models import Q, OuterRef, Subquery, Exists
 import datetime
 from django.contrib import messages
 from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 import re
+import unicodedata
 from django.db.models import F
 # from django.views.decorators.cache import cache_page
 # from django.utils.decorators import method_decorator
@@ -32,7 +33,7 @@ def read_uploaded_csv_text(uploaded_file):
     except Exception:
         pass
     raw = uploaded_file.read()
-    for enc in ('utf-8-sig', 'utf-8', 'cp1252', 'latin-1'):
+    for enc in ('utf-8-sig', 'utf-8', 'utf-16', 'utf-16-le', 'utf-16-be', 'cp1252', 'latin-1'):
         try:
             return raw.decode(enc)
         except Exception:
@@ -40,16 +41,63 @@ def read_uploaded_csv_text(uploaded_file):
     # Si no se pudo decodificar, relanza error con mensaje claro
     raise UnicodeDecodeError('decode', raw, 0, 1, 'No se pudo decodificar el CSV. Guarde como UTF-8 y reintente.')
 
+# --- Helper: crear DictReader detectando delimitador automáticamente ---
+def make_dict_reader_from_text(text: str) -> csv.DictReader:
+    """Crea un DictReader detectando delimitador (coma, punto y coma, tab o pipe)."""
+    if not isinstance(text, str):
+        text = str(text or '')
+    # quitar BOM manual si quedó
+    if text.startswith('\ufeff'):
+        text = text.lstrip('\ufeff')
+    sample = text[:8192]
+    delimiters = [',', ';', '\t', '|']
+    delim = ','
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=delimiters)
+        delim = getattr(dialect, 'delimiter', ',') or ','
+    except Exception:
+        # Heurística por primera línea
+        first = sample.splitlines()[0] if sample else ''
+        counts = {d: first.count(d.replace('\\t', '\t')) for d in delimiters}
+        delim = max(counts, key=counts.get)
+        if counts.get(delim, 0) == 0:
+            delim = ','
+    # Construir el reader
+    return csv.DictReader(io.StringIO(text), delimiter=('\t' if delim == '\\t' else delim))
+
 # --- Helper: validar orden exacto de columnas ---
-REQUIRED_HEADERS_ORDER = [
-    'JUGADA','ARBITRO','CANAL INICIO','EVENTO','EQUIPO','FIN','FICHA','INICIA','INICIO',
-    'MARCADOR_FINAL','TERMINA','TIEMPO','TORNEO','ZONA FIN','ZONA INICIO','RESULTADO','JUGADORES',
-    'SIGUE CON','POS TIRO','SET','TIRO','TIPO','ACCION','TERMINA EN','SANCION','SITUACION','TRANSICION'
+# Encabezados requeridos (orden no importa durante la validación flexible)
+REQUIRED_HEADERS = [
+    'JUGADA','ARBITRO','CANAL DE INICIO','EVENTO','EQUIPO','FIN','FICHA','INICIA','INICIO',
+    'MARCADOR FINAL','TERMINA','TIEMPO','TORNEO','ZONA FIN','ZONA INICIO','RESULTADO','JUGADORES',
+    'SIGUE CON','POS TIRO','SET','TIRO','TIPO','ACCION','SANCION','TRANSICION'
 ]
+
+# Encabezados opcionales (si faltan, importamos en blanco)
+OPTIONAL_HEADERS = ['SITUACION PENAL','NUEVA CATEGORIA','ACERCAR','ALEJAR','SITUACION','TERMINA EN']
+
+# Orden recomendado para exportar (incluye opcionales al final)
+EXPORT_HEADERS_ORDER = REQUIRED_HEADERS + OPTIONAL_HEADERS
+
+# Aceptar sinónimos/combinaciones para robustez al importar
+HEADER_SYNONYMS = {
+    'CANAL DE INICIO': ['CANAL DE INICIO', 'CANAL INICIO'],
+    'ZONA FIN': ['ZONA FIN', 'ZONA_FINAL', 'ZONA FINAL'],
+    'ZONA INICIO': ['ZONA INICIO', 'ZONA_INICIO', 'ZONA DE INICIO'],
+    'SIGUE CON': ['SIGUE CON', 'SIGUE_CON'],
+    'POS TIRO': ['POS TIRO', 'POS_TIRO', 'POS. TIRO'],
+    'TERMINA EN': ['TERMINA EN', 'TERMINA_EN'],
+    'MARCADOR FINAL': ['MARCADOR FINAL', 'MARCADOR_FINAL'],
+    'SITUACION': ['SITUACION'],
+    'SITUACION PENAL': ['SITUACION PENAL', 'SITUACION_PENAL', 'SIT PENAL', 'PENAL SITUACION'],
+    'NUEVA CATEGORIA': ['NUEVA CATEGORIA', 'NUEVA_CATEGORIA', 'CATEGORIA NUEVA', 'CATEGORIA', 'NUEVA SUBCATEGORIA', 'NUEVA_SUBCATEGORIA', 'SUBCATEGORIA NUEVA'],
+    'ACERCAR': ['ACERCAR', 'ZOOM IN', 'ZOOM_IN'],
+    'ALEJAR': ['ALEJAR', 'ZOOM OUT', 'ZOOM_OUT'],
+}
 
 def validate_headers_strict(fieldnames):
     headers = [h.strip().upper() for h in (fieldnames or [])]
-    expected = REQUIRED_HEADERS_ORDER
+    expected = EXPORT_HEADERS_ORDER
     if len(headers) != len(expected):
         return False, f"Cantidad de columnas inválida. Se esperaban {len(expected)} columnas en este orden: {', '.join(expected)}. Se recibieron {len(headers)}: {', '.join(headers)}"
     for idx, (h, e) in enumerate(zip(headers, expected), start=1):
@@ -58,6 +106,18 @@ def validate_headers_strict(fieldnames):
     return True, ''
 
 # NUEVO: validación flexible (acepta cualquier orden, ignora extras)
+def _norm_key(s: str) -> str:
+    """Normaliza cabeceras: minúsculas, sin tildes, espacios compactados y guiones bajos como espacios."""
+    if s is None:
+        return ''
+    s = str(s).strip()
+    s = s.replace('_', ' ')
+    # quitar tildes/diacríticos
+    s = ''.join(c for c in unicodedata.normalize('NFKD', s) if not unicodedata.combining(c))
+    # colapsar espacios
+    s = re.sub(r'\s+', ' ', s)
+    return s.lower()
+
 def validate_headers_flexible(fieldnames):
     """
     Verifica que el CSV contenga todas las columnas requeridas (case-insensitive),
@@ -66,15 +126,29 @@ def validate_headers_flexible(fieldnames):
     """
     if not fieldnames:
         return False, "CSV vacío o sin encabezados", {}
-    incoming = {h.strip().lower(): h for h in (fieldnames or [])}
+    incoming = {_norm_key(h): h for h in (fieldnames or [])}
     header_map = {}
     missing = []
-    for req in REQUIRED_HEADERS_ORDER:
-        key = req.strip().lower()
-        if key in incoming:
-            header_map[req.upper()] = incoming[key]
+    for req in REQUIRED_HEADERS:
+        candidates = HEADER_SYNONYMS.get(req, [req])
+        found_key = None
+        for cand in candidates:
+            key = _norm_key(cand)
+            if key in incoming:
+                found_key = key
+                break
+        if found_key is not None:
+            header_map[req.upper()] = incoming[found_key]
         else:
             missing.append(req)
+    # Mapear opcionales si existen
+    for opt in OPTIONAL_HEADERS:
+        candidates = HEADER_SYNONYMS.get(opt, [opt])
+        for cand in candidates:
+            key = _norm_key(cand)
+            if key in incoming:
+                header_map[opt.upper()] = incoming[key]
+                break
     if missing:
         return False, f"Faltan columnas obligatorias en el CSV: {', '.join(missing)}", {}
     return True, '', header_map
@@ -129,11 +203,22 @@ def get_any_ci(row_ci: dict, *keys, default=''):
 
 # --- Conversor de Tiempo a Decimal con 3 decimales ---
 def parse_time_to_seconds(time_str):
-    """Convierte 'HH:MM:SS.micro' o 'MM:SS' a Decimal con 3 decimales."""
+    """Convierte a Decimal segundos con 3 decimales.
+    Acepta:
+      - 'HH:MM:SS' o 'HH:MM:SS.micro'
+      - 'MM:SS' o 'MM:SS.micro'
+      - 'YYYY-MM-DD HH:MM:SS[.micro]' (usa la parte de la hora)
+    """
     if not time_str:
         return Decimal('0.000')
     try:
         s = str(time_str).strip()
+        # Si viene datetime completo, tomar la parte de hora al final
+        if ' ' in s:
+            s = s.split()[-1]
+        # Normalizar separador decimal con punto
+        if ',' in s and '.' not in s:
+            s = s.replace(',', '.')
         parts = s.split(':')
         if len(parts) == 2:
             h = 0
@@ -146,12 +231,12 @@ def parse_time_to_seconds(time_str):
         if '.' in sec_part:
             s_int, s_frac = sec_part.split('.', 1)
             secs = int(s_int)
-            micro = int(s_frac[:6].ljust(6, '0'))  # microsegundos
+            micro = int(s_frac[:6].ljust(6, '0'))
         else:
             secs = int(sec_part)
             micro = 0
         total = (h * 3600) + (m * 60) + secs + (Decimal(micro) / Decimal(1_000_000))
-        return (Decimal(total).quantize(Decimal('0.001'), rounding=ROUND_HALF_UP))
+        return Decimal(total).quantize(Decimal('0.001'), rounding=ROUND_HALF_UP)
     except Exception:
         return Decimal('0.000')
 
@@ -197,6 +282,11 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
         csv_file = form.cleaned_data['csv_file']
         match_date = form.cleaned_data['match_date']
 
+        # Validación temprana: equipos no pueden ser iguales
+        if home_team_name.lower() == away_team_name.lower():
+            messages.warning(self.request, "No pueden ser los 2 equipos iguales.")
+            return self.render_to_response(self.get_context_data(form=form))
+
         video_id = get_youtube_video_id(youtube_url)
         if not video_id:
             form.add_error('youtube_url', 'La URL de YouTube no es válida.')
@@ -232,12 +322,12 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
             # Procesar CSV con validación de cabeceras
             try:
                 data_set = read_uploaded_csv_text(csv_file)
-                io_string = io.StringIO(data_set)
-                reader = csv.DictReader(io_string)
+                reader = make_dict_reader_from_text(data_set)
                 ok, msg, header_map = validate_headers_flexible(reader.fieldnames)
                 if not ok:
                     messages.error(self.request, msg)
-                    return redirect('player:upload_analysis')
+                    # Renderizar misma vista para mostrar el mensaje inmediatamente
+                    return self.render_to_response(self.get_context_data(form=form))
                 plays_to_create = []
                 count = 0
                 for row in reader:
@@ -245,14 +335,14 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
                         match=match,
                         jugada=(row.get(header_map['JUGADA']) or '').strip(),
                         arbitro=(row.get(header_map['ARBITRO']) or '').strip(),
-                        canal_inicio=(row.get(header_map['CANAL INICIO']) or '').strip(),
+                        canal_de_inicio=(row.get(header_map['CANAL DE INICIO']) or '').strip(),
                         evento=(row.get(header_map['EVENTO']) or '').strip(),
                         equipo=(row.get(header_map['EQUIPO']) or '').strip(),
                         fin=parse_time_to_seconds(row.get(header_map['FIN']) or ''),
                         ficha=(row.get(header_map['FICHA']) or '').strip(),
                         inicia=(row.get(header_map['INICIA']) or '').strip(),
                         inicio=parse_time_to_seconds(row.get(header_map['INICIO']) or ''),
-                        marcador_final=(row.get(header_map['MARCADOR_FINAL']) or '').strip(),
+                        marcador_final=(row.get(header_map['MARCADOR FINAL']) or '').strip(),
                         termina=(row.get(header_map['TERMINA']) or '').strip(),
                         tiempo=(row.get(header_map['TIEMPO']) or '').strip(),
                         torneo=(row.get(header_map['TORNEO']) or '').strip(),
@@ -266,10 +356,14 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
                         tiro=(row.get(header_map['TIRO']) or '').strip(),
                         tipo=(row.get(header_map['TIPO']) or '').strip(),
                         accion=(row.get(header_map['ACCION']) or '').strip(),
-                        termina_en=(row.get(header_map['TERMINA EN']) or '').strip(),
+                        termina_en=(row.get(header_map.get('TERMINA EN','')) or '').strip(),
                         sancion=(row.get(header_map['SANCION']) or '').strip(),
-                        situacion=(row.get(header_map['SITUACION']) or '').strip(),
+                        situacion=(row.get(header_map.get('SITUACION','')) or '').strip(),
                         transicion=(row.get(header_map['TRANSICION']) or '').strip(),
+                        situacion_penal=(row.get(header_map.get('SITUACION PENAL','')) or '').strip(),
+                        nueva_categoria=(row.get(header_map.get('NUEVA CATEGORIA','')) or '').strip(),
+                        acercar=(row.get(header_map.get('ACERCAR','')) or '').strip(),
+                        alejar=(row.get(header_map.get('ALEJAR','')) or '').strip(),
                     ))
                     count += 1
                 if plays_to_create:
@@ -279,7 +373,8 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
                     messages.warning(self.request, "El archivo CSV no contenía jugadas válidas.")
             except Exception as e:
                 messages.error(self.request, f"Error al procesar el archivo CSV: {e}")
-                return redirect('player:upload_analysis')
+                # Renderizamos aquí para que el error sea visible con SweetAlert
+                return self.render_to_response(self.get_context_data(form=form))
 
         # En vez de redirigir, renderizamos la misma vista para mostrar el mensaje y opciones
         return self.render_to_response(self.get_context_data(form=form))
@@ -383,16 +478,13 @@ class MatchPlayerView(LoginRequiredMixin, DetailView):
             response = HttpResponse(content_type='text/csv; charset=utf-8')
             response['Content-Disposition'] = f'attachment; filename="{safe_name}.csv"'
             writer = csv.writer(response)
-            writer.writerow([
-                'JUGADA','ARBITRO','CANAL INICIO','EVENTO','EQUIPO','FIN','FICHA','INICIA','INICIO',
-                'MARCADOR_FINAL','TERMINA','TIEMPO','TORNEO','ZONA FIN','ZONA INICIO','RESULTADO','JUGADORES',
-                'SIGUE CON','POS TIRO','SET','TIRO','TIPO','ACCION','TERMINA EN','SANCION','SITUACION','TRANSICION'
-            ])
+            writer.writerow(EXPORT_HEADERS_ORDER)
             for p in plays_list:
                 writer.writerow([
-                    p.jugada, p.arbitro, p.canal_inicio, p.evento, p.equipo, p.fin, p.ficha, p.inicia, p.inicio,
+                    p.jugada, p.arbitro, p.canal_de_inicio, p.evento, p.equipo, p.fin, p.ficha, p.inicia, p.inicio,
                     p.marcador_final, p.termina, p.tiempo, p.torneo, p.zona_fin, p.zona_inicio, p.resultado, p.jugadores,
-                    p.sigue_con, p.pos_tiro, p.set, p.tiro, p.tipo, p.accion, p.termina_en, p.sancion, p.situacion, p.transicion
+                    p.sigue_con, p.pos_tiro, p.set, p.tiro, p.tipo, p.accion, p.termina_en, p.sancion, p.situacion, p.transicion,
+                    getattr(p, 'situacion_penal', ''), getattr(p, 'nueva_categoria', ''), getattr(p, 'acercar', ''), getattr(p, 'alejar', '')
                 ])
             return response
         return super().get(request, *args, **kwargs)
@@ -521,6 +613,10 @@ class MatchListView(LoginRequiredMixin, ListView):
         # Antes: resultado -> Ahora: marcador_final
         result_sq = Play.objects.filter(match=OuterRef('pk')).exclude(marcador_final='').values('marcador_final')[:1]
         queryset = queryset.annotate(match_result=Subquery(result_sq))
+
+        # --- Anotar si el partido tiene jugadas ---
+        has_plays_exists = Play.objects.filter(match=OuterRef('pk'))
+        queryset = queryset.annotate(has_plays=Exists(has_plays_exists))
 
         # --- LÓGICA DE ORDENAMIENTO SEGURA ---
         sort_by = self.request.GET.get('sort', '-match_date') # Por defecto, por fecha del partido
@@ -659,8 +755,7 @@ class MatchCSVUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
             return redirect('player:play_match', pk=pk)
         try:
             text = read_uploaded_csv_text(uploaded)
-            io_string = io.StringIO(text)
-            reader = csv.DictReader(io_string)
+            reader = make_dict_reader_from_text(text)
             ok, msg, header_map = validate_headers_flexible(reader.fieldnames)
             if not ok:
                 messages.error(request, msg)
@@ -673,14 +768,14 @@ class MatchCSVUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                     match=match,
                     jugada=(row.get(header_map['JUGADA']) or '').strip(),
                     arbitro=(row.get(header_map['ARBITRO']) or '').strip(),
-                    canal_inicio=(row.get(header_map['CANAL INICIO']) or '').strip(),
+                    canal_de_inicio=(row.get(header_map['CANAL DE INICIO']) or '').strip(),
                     evento=(row.get(header_map['EVENTO']) or '').strip(),
                     equipo=(row.get(header_map['EQUIPO']) or '').strip(),
                     fin=parse_time_to_seconds(row.get(header_map['FIN']) or ''),
                     ficha=(row.get(header_map['FICHA']) or '').strip(),
                     inicia=(row.get(header_map['INICIA']) or '').strip(),
                     inicio=parse_time_to_seconds(row.get(header_map['INICIO']) or ''),
-                    marcador_final=(row.get(header_map['MARCADOR_FINAL']) or '').strip(),
+                    marcador_final=(row.get(header_map['MARCADOR FINAL']) or '').strip(),
                     termina=(row.get(header_map['TERMINA']) or '').strip(),
                     tiempo=(row.get(header_map['TIEMPO']) or '').strip(),
                     torneo=(row.get(header_map['TORNEO']) or '').strip(),
@@ -694,10 +789,14 @@ class MatchCSVUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                     tiro=(row.get(header_map['TIRO']) or '').strip(),
                     tipo=(row.get(header_map['TIPO']) or '').strip(),
                     accion=(row.get(header_map['ACCION']) or '').strip(),
-                    termina_en=(row.get(header_map['TERMINA EN']) or '').strip(),
+                    termina_en=(row.get(header_map.get('TERMINA EN','')) or '').strip(),
                     sancion=(row.get(header_map['SANCION']) or '').strip(),
-                    situacion=(row.get(header_map['SITUACION']) or '').strip(),
+                    situacion=(row.get(header_map.get('SITUACION','')) or '').strip(),
                     transicion=(row.get(header_map['TRANSICION']) or '').strip(),
+                    situacion_penal=(row.get(header_map.get('SITUACION PENAL','')) or '').strip(),
+                    nueva_categoria=(row.get(header_map.get('NUEVA CATEGORIA','')) or '').strip(),
+                    acercar=(row.get(header_map.get('ACERCAR','')) or '').strip(),
+                    alejar=(row.get(header_map.get('ALEJAR','')) or '').strip(),
                 ))
                 count += 1
 

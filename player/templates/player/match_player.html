@@ -137,15 +137,43 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     {% for message in messages %}
-      Swal.fire({
-        icon: '{{ message.tags|default:"info" }}',
-        title: '{{ message|escapejs }}',
-        showConfirmButton: false,
-        timer: 2500
-      });
+      {% if 'error' in message.tags %}
+        Swal.fire({
+          icon: 'error',
+          title: 'Error al procesar el CSV',
+          html: '<pre style="text-align:left;white-space:pre-wrap">' + '{{ message|escapejs }}' + '</pre>',
+          confirmButtonText: 'Entendido',
+          buttonsStyling: true,
+          showConfirmButton: true,
+          didOpen: () => {
+            const btn = Swal.getConfirmButton();
+            if (btn) {
+              btn.style.display = 'inline-flex';
+              btn.style.alignItems = 'center';
+              btn.style.justifyContent = 'center';
+              btn.style.minWidth = '130px';
+              btn.style.fontWeight = '600';
+              btn.style.border = 'none';
+              btn.style.boxShadow = 'none';
+              btn.style.opacity = '1';
+              btn.style.filter = 'none';
+              btn.style.visibility = 'visible';
+              btn.style.backgroundColor = '#1d4ed8';
+              btn.style.color = '#fff';
+            }
+          }
+        });
+      {% else %}
+        Swal.fire({
+          icon: '{{ message.tags|default:"info" }}',
+          title: '{{ message|escapejs }}',
+          showConfirmButton: false,
+          timer: 2500
+        });
+      {% endif %}
     {% endfor %}
   });
-</script>
+  </script>
 {% endif %}
 
 {% block scripts %}
@@ -259,6 +287,7 @@
         processing: true,
         serverSide: true,
         searching: true,
+        select: false,              // desactiva selección de filas si el plugin Select está presente
         lengthChange: true,
         pageLength: 10,
   // Ordenar por la columna visible "Inicia" (índice visible 3)
@@ -363,8 +392,43 @@
         });
       }
 
-      // Botones y limpiezas (sin cambios)
-      // ...
+      // Botones: Exportar filtradas, Exportar seleccionadas, Deshacer selección
+      if (exportFiltersBtn) {
+        exportFiltersBtn.addEventListener('click', function(ev){
+          ev.preventDefault();
+          // Tomar filtros actuales del querystring
+          const params = new URLSearchParams(window.location.search);
+          params.set('export', 'csv');
+          const url = `${window.location.pathname}?${params.toString()}`;
+          window.open(url, '_blank');
+        });
+      }
+
+      if (exportSelectedBtn) {
+        exportSelectedBtn.addEventListener('click', function(ev){
+          ev.preventDefault();
+          const ids = Array.from(selectedSet).join(',');
+          if (!ids) return;
+          const params = new URLSearchParams(window.location.search);
+          params.set('export', 'csv');
+          params.set('ids', ids);
+          const url = `${window.location.pathname}?${params.toString()}`;
+          window.open(url, '_blank');
+        });
+      }
+
+      if (clearSelectionBtn) {
+        clearSelectionBtn.addEventListener('click', function(ev){
+          ev.preventDefault();
+          selectedSet.clear();
+          document.querySelectorAll('#plays-table .dt-play').forEach(cb => cb.checked = false);
+          if (dtSelectAll) dtSelectAll.checked = false;
+          updateButtons();
+          renderSelectedList();
+        });
+      }
+
+      // Botones y limpiezas listos
       updateButtons();
       renderSelectedList();
       window.renderSelectedList = renderSelectedList;

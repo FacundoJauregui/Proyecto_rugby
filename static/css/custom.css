@@ -24,13 +24,31 @@ y lo obliga a ocupar el 100% del espacio de su contenedor.
   }
 }
 
+/* Desactivar cualquier resaltado visual de filas "en reproducción" */
 .is-playing {
-  background-color: #3b82f6 !important; /* Azul de Tailwind */
-  color: white !important;
+  background: inherit !important;
+  color: inherit !important;
 }
 
-/* También cambiamos el color del texto secundario */
 .is-playing label span:last-child {
-  color: #e5e7eb !important; /* Gris claro */
+  color: inherit !important;
+}
+
+/* Neutralizar el resaltado azul de DataTables cuando una fila queda "selected" */
+table.dataTable > tbody > tr.selected > *,
+table.dataTable.hover > tbody > tr.selected:hover > *,
+table.dataTable.display > tbody > tr.selected:hover > * {
+  box-shadow: none !important;
+  color: inherit !important;
+}
+
+/* También para variantes stripe/order-column que aplican overlay mediante box-shadow */
+table.dataTable.stripe > tbody > tr.selected > *,
+table.dataTable.display > tbody > tr.selected > *,
+table.dataTable.order-column > tbody tr.selected > .sorting_1,
+table.dataTable.order-column > tbody tr.selected > .sorting_2,
+table.dataTable.order-column > tbody tr.selected > .sorting_3 {
+  box-shadow: none !important;
+  color: inherit !important;
 }
 
