@@ -53,7 +53,8 @@
           <button id="play-selection-btn" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>▶️ Reproducir Selección</button>
           <div class="flex flex-row gap-2">
             <button id="export-filters-btn" type="button" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">⬇️ Exportar filtradas</button>
-            <button id="export-selected-btn" type="button" disabled class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">⬇️ Exportar seleccionadas</button>
+            <button id="export-selected-btn" type="button" disabled class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">⬇️ Exportar seleccionadas (CSV)</button>
+            <button id="export-selected-mp4-btn" type="button" disabled class="w-full mt-2 text-white bg-green-600 hover:bg-green-700 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">🎬 Exportar seleccionadas (MP4)</button>
           </div>
 
           <!-- Nuevo: Deshacer Selección (borra selección en memoria solo en esta vista) -->
@@ -193,6 +194,7 @@
 
       const exportFiltersBtn = document.getElementById('export-filters-btn');
       const exportSelectedBtn = document.getElementById('export-selected-btn');
+      const exportSelectedMp4Btn = document.getElementById('export-selected-mp4-btn');
       const playBtn = document.getElementById('play-selection-btn');
       const dtSelectAll = document.getElementById('dt-select-all');
       const clearSelectionBtn = document.getElementById('clear-selection-btn');
@@ -221,6 +223,7 @@
 
       const updateButtons = () => {
         if (exportSelectedBtn) exportSelectedBtn.disabled = selectedSet.size === 0;
+        if (exportSelectedMp4Btn) exportSelectedMp4Btn.disabled = selectedSet.size === 0;
         if (playBtn) playBtn.disabled = selectedSet.size === 0;
       };
       window.updateButtons = updateButtons;
@@ -413,6 +416,19 @@
           if (!ids) return;
           const params = new URLSearchParams(window.location.search);
           params.set('export', 'csv');
+          params.set('ids', ids);
+          const url = `${window.location.pathname}?${params.toString()}`;
+          window.open(url, '_blank');
+        });
+      }
+
+      if (exportSelectedMp4Btn) {
+        exportSelectedMp4Btn.addEventListener('click', function(ev){
+          ev.preventDefault();
+          const ids = Array.from(selectedSet).join(',');
+          if (!ids) return;
+          const params = new URLSearchParams(window.location.search);
+          params.set('export', 'mp4');
           params.set('ids', ids);
           const url = `${window.location.pathname}?${params.toString()}`;
           window.open(url, '_blank');

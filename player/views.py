@@ -19,6 +19,11 @@ performance (uso de `bulk_create`, `Subquery`, `Exists`, índices y filtrado).
 """
 import csv
 import io
+import os
+import tempfile
+import subprocess
+import shutil
+import threading
  
 from urllib.parse import urlparse, parse_qs
 from django.shortcuts import redirect, render, get_object_or_404
@@ -35,7 +40,7 @@ import datetime
 from django.contrib import messages
 from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, FileResponse
 import re
 import unicodedata
 from django.db.models import F
@@ -114,7 +119,141 @@ HEADER_SYNONYMS = {
     'ALEJAR': ['ALEJAR', 'ZOOM OUT', 'ZOOM_OUT'],
 }
 
-# (Se removieron helpers de video agregados temporalmente)
+# --- Helpers de video: descarga y exportación de clips a MP4 ---
+def _download_youtube_to_mp4(video_id: str, out_dir: str) -> str:
+    """Descarga el video de YouTube como MP4 usando yt-dlp.
+
+    Devuelve la ruta absoluta del archivo .mp4 descargado. Lanza excepción si falla
+    o si no está instalado yt-dlp.
+    """
+    try:
+        import yt_dlp  # type: ignore
+    except Exception as e:
+        raise RuntimeError("yt-dlp no está instalado. Instálalo para exportar MP4.") from e
+
+    # Configurar opciones de yt-dlp: salida MP4, ffmpeg y extractor estable
+    ydl_opts = {
+        'outtmpl': os.path.join(out_dir, '%(id)s.%(ext)s'),
+        # Preferir un MP4 simple; fallback a video+audio separados en MP4/M4A
+        'format': 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]',
+        'merge_output_format': 'mp4',
+        'quiet': True,
+        'noprogress': True,
+        'timeout': 60,
+        # Usar ffmpeg explícito si el proceso no ve el PATH
+        'ffmpeg_location': r"C:\ffmpeg\bin\ffmpeg.exe",
+        # Forzar cliente Android para evitar SABR y JS runtime issues
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android']
+            }
+        },
+    }
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        path = ydl.prepare_filename(info)
+    # Asegurar extensión .mp4 (yt-dlp puede devolver .mkv si no se fuerza merge_output_format)
+    base, _ = os.path.splitext(path)
+    mp4_path = base + '.mp4'
+    if os.path.exists(mp4_path):
+        return mp4_path
+    if os.path.exists(path):
+        return path
+    raise RuntimeError('No se pudo ubicar el archivo descargado del video.')
+
+def _ffmpeg_path() -> str:
+    """Devuelve el ejecutable ffmpeg. En Windows, usa ruta explícita si existe."""
+    explicit = r"C:\ffmpeg\bin\ffmpeg.exe"
+    try:
+        import os
+        if os.path.exists(explicit):
+            return explicit
+    except Exception:
+        pass
+    return 'ffmpeg'
+
+def _seconds(v) -> float:
+    try:
+        from decimal import Decimal
+        if isinstance(v, Decimal):
+            return float(v)
+        return float(v)
+    except Exception:
+        return 0.0
+
+def build_mp4_from_segments(video_id: str, segments, filename_hint: str = 'clips') -> str:
+    """Construye un MP4 concatenando segmentos [(start, end), ...] del video.
+
+    Descarga el video (yt-dlp), recorta con ffmpeg y concatena. Devuelve la ruta al MP4 final.
+    """
+    if not segments:
+        raise ValueError('No hay segmentos para exportar')
+
+    tmpdir = tempfile.mkdtemp(prefix='match_clips_')
+    src_path = _download_youtube_to_mp4(video_id, tmpdir)
+
+    # Normalizar y ordenar segmentos; fusionar solapados
+    norm = []
+    for a, b in segments:
+        s = max(0.0, _seconds(a))
+        e = max(0.0, _seconds(b))
+        if e > s:
+            norm.append((s, e))
+    norm.sort()
+    merged = []
+    for s, e in norm:
+        if not merged:
+            merged.append([s, e])
+        else:
+            ps, pe = merged[-1]
+            if s <= pe + 0.2:  # unir si se solapan o están muy cerca
+                merged[-1][1] = max(pe, e)
+            else:
+                merged.append([s, e])
+
+    # Generar clips individuales
+    clip_paths = []
+    ffmpeg = _ffmpeg_path()
+    for idx, (s, e) in enumerate(merged, 1):
+        out_clip = os.path.join(tmpdir, f'clip_{idx:03d}.mp4')
+        cmd_copy = [ffmpeg, '-y', '-ss', f'{s:.3f}', '-to', f'{e:.3f}', '-i', src_path, '-c', 'copy', out_clip]
+        try:
+            subprocess.run(cmd_copy, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            # Fallback: re-encode para cortes precisos y evitar fallos de copy
+            cmd_encode = [
+                ffmpeg, '-y', '-ss', f'{s:.3f}', '-to', f'{e:.3f}', '-i', src_path,
+                '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', out_clip
+            ]
+            try:
+                subprocess.run(cmd_encode, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as ex2:
+                raise RuntimeError('FFmpeg falló al recortar un clip (copy y re-encode). Verifica ffmpeg y permisos.') from ex2
+        clip_paths.append(out_clip)
+
+    # Concatenar
+    list_path = os.path.join(tmpdir, 'concat.txt')
+    with open(list_path, 'w', encoding='utf-8') as f:
+        for p in clip_paths:
+            normalized = p.replace('\\', '/')
+            f.write(f"file '{normalized}'\n")
+    out_path = os.path.join(tmpdir, f"{filename_hint}.mp4")
+    cmd2 = [ffmpeg, '-y', '-f', 'concat', '-safe', '0', '-i', list_path, '-c', 'copy', out_path]
+    try:
+        subprocess.run(cmd2, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as ex:
+        raise RuntimeError('FFmpeg falló al concatenar clips.') from ex
+
+    # Programar limpieza asíncrona del tmpdir más tarde
+    def _cleanup(path):
+        try:
+            import time; time.sleep(120)
+            shutil.rmtree(path, ignore_errors=True)
+        except Exception:
+            pass
+    threading.Thread(target=_cleanup, args=(tmpdir,), daemon=True).start()
+    return out_path
 
 def validate_headers_strict(fieldnames):
     headers = [h.strip().upper() for h in (fieldnames or [])]
@@ -464,8 +603,64 @@ class MatchPlayerView(LoginRequiredMixin, DetailView):
     redirect_field_name = 'next'
 
     def get(self, request, *args, **kwargs):
+        export_kind = request.GET.get('export')
+        # Exportación de MP4 de jugadas seleccionadas o filtradas
+        if export_kind == 'mp4':
+            self.object = self.get_object()
+            match = self.object
+            plays_list = match.plays.all().order_by('inicio')
+
+            # Copiar filtros actuales
+            evento_filter = request.GET.get('evento', '')
+            equipo_filter = request.GET.get('equipo', '')
+            zona_inicio_filter = request.GET.get('zona_inicio', '')
+            zona_fin_filter = request.GET.get('zona_fin', '')
+            inicia_filter = request.GET.get('inicia', '')
+            jugada_filter = request.GET.get('jugada', '')
+
+            if evento_filter:
+                plays_list = plays_list.filter(evento=evento_filter)
+            if equipo_filter:
+                plays_list = plays_list.filter(equipo=equipo_filter)
+            if zona_inicio_filter:
+                plays_list = plays_list.filter(zona_inicio=zona_inicio_filter)
+            if zona_fin_filter:
+                plays_list = plays_list.filter(zona_fin=zona_fin_filter)
+            if inicia_filter:
+                plays_list = plays_list.filter(inicia=inicia_filter)
+            if jugada_filter:
+                plays_list = plays_list.filter(jugada=jugada_filter)
+
+            # Selección por IDs (si corresponde)
+            ids_param = request.GET.get('ids')
+            filename_base = f"{match.home_team} vs {match.away_team}_clips"
+            if ids_param:
+                try:
+                    ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+                except Exception:
+                    ids = []
+                if ids:
+                    plays_list = plays_list.filter(pk__in=ids)
+                    filename_base += '_seleccionadas'
+
+            segments = list(plays_list.values_list('inicio', 'fin'))
+            if not segments:
+                messages.warning(request, 'No hay jugadas para exportar.')
+                return redirect('player:play_match', pk=match.pk)
+
+            try:
+                out_path = build_mp4_from_segments(match.video_id, segments, filename_base)
+            except Exception as e:
+                messages.error(request, f'No se pudo generar el MP4: {e}')
+                return redirect('player:play_match', pk=match.pk)
+
+            safe_name = re.sub(r'[^A-Za-z0-9_\-]+', '_', filename_base)
+            resp = FileResponse(open(out_path, 'rb'), content_type='video/mp4')
+            resp['Content-Disposition'] = f'attachment; filename="{safe_name}.mp4"'
+            return resp
+
         # Exportación CSV del conjunto filtrado (sin paginar) o por selección
-        if request.GET.get('export') == 'csv':
+        if export_kind == 'csv':
             self.object = self.get_object()
             match = self.object
             plays_list = match.plays.all().order_by('inicio')
