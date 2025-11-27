@@ -7,7 +7,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Playbook Rugby{% endblock %}</title>
     
-    <link rel="icon" href="{% static 'images/nombre-de-tu-favicon.ico' %}" type="image/x-icon">
+    <!-- Favicon y app icons -->
+    <link rel="icon" type="image/png" sizes="48x48" href="{% static 'images/icons8-emoji-boton-reproducir-48.png' %}">
+    <link rel="shortcut icon" type="image/png" href="{% static 'images/icons8-emoji-boton-reproducir-48.png' %}">
+    <!-- Opcional: Apple Touch (usa mismo PNG para simplificar) -->
+    <link rel="apple-touch-icon" href="{% static 'images/icons8-emoji-boton-reproducir-48.png' %}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet" />
     <!-- DataTables local (sin CDN) -->
     <link rel="stylesheet" href="{% static 'vendor/datatables/dataTables.dataTables.min.css' %}">

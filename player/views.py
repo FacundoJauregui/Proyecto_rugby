@@ -1,13 +1,32 @@
 # player/views.py
+"""Vistas y utilidades de la app `player`.
+
+Estructura general del módulo:
+1. Helpers para ingestión y validación de CSV (lectura flexible de encoding,
+    detección de delimitadores, normalización y validación robusta de cabeceras).
+2. Parseo y normalización de tiempos hacia `Decimal` para precisión (3 decimales).
+3. Vistas de autenticación mínimas (login/logout/bienvenida).
+4. Flujo de carga inicial de un partido + jugadas (`AnalysisUploadView`).
+5. Reproductor y exportación filtrada de jugadas (`MatchPlayerView`).
+6. Listado de partidos con reglas de visibilidad avanzadas para entrenadores
+    (`MatchListView`).
+7. Endpoints JSON para proveer datos paginados a DataTables (`MatchPlaysDataView`).
+8. Subida/actualización posterior de jugadas desde el reproductor (`MatchCSVUploadView`).
+9. Gestión de presets de selección de jugadas para reusar clips (`MatchSelectionPreset*`).
+
+Cada bloque incluye comentarios sobre decisiones de diseño, validaciones y
+performance (uso de `bulk_create`, `Subquery`, `Exists`, índices y filtrado).
+"""
 import csv
 import io
+ 
 from urllib.parse import urlparse, parse_qs
 from django.shortcuts import redirect, render, get_object_or_404
 from django.contrib.auth import logout
 from django.views.generic import FormView, DetailView, ListView,View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from .forms import AnalysisUploadForm
-from .models import Match, Play
+from .models import Match, Play, Tournament, Country, CoachTournamentTeamParticipation, Team
 from django.core.paginator import Paginator
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import reverse_lazy
@@ -94,6 +113,8 @@ HEADER_SYNONYMS = {
     'ACERCAR': ['ACERCAR', 'ZOOM IN', 'ZOOM_IN'],
     'ALEJAR': ['ALEJAR', 'ZOOM OUT', 'ZOOM_OUT'],
 }
+
+# (Se removieron helpers de video agregados temporalmente)
 
 def validate_headers_strict(fieldnames):
     headers = [h.strip().upper() for h in (fieldnames or [])]
@@ -250,13 +271,21 @@ class UserLoginView(LoginView):
         return reverse_lazy('player:match_list')
 
 class UserLogoutView(View):
+    """Cierra la sesión actual y redirige al formulario de login.
+
+    Solo implementa GET por simplicidad; en caso de necesitar seguridad reforzada
+    se podría migrar a POST + CSRF.
+    """
     def get(self, request, *args, **kwargs):
-        # Cerramos la sesión del usuario
-        logout(request)
-        # Redirigimos a la página de login
-        return redirect('player:login')
+        logout(request)  # Invalida la sesión.
+        return redirect('player:login')  # Regresa a pantalla de autenticación.
 
 class WelcomeView(View):
+    """Página inicial pública.
+
+    Si el usuario ya está autenticado lo lleva directamente al listado de
+    partidos evitando mostrar la pantalla de bienvenida.
+    """
     def get(self, request, *args, **kwargs):
         if request.user.is_authenticated:
             return redirect('player:match_list')
@@ -281,6 +310,8 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
         youtube_url = form.cleaned_data['youtube_url']
         csv_file = form.cleaned_data['csv_file']
         match_date = form.cleaned_data['match_date']
+        tournament = form.cleaned_data.get('tournament')
+        division = form.cleaned_data.get('division') or None
 
         # Validación temprana: equipos no pueden ser iguales
         if home_team_name.lower() == away_team_name.lower():
@@ -309,6 +340,8 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
                     'home_team': home_team_name,
                     'away_team': away_team_name,
                     'match_date': match_date,
+                    'tournament': tournament,
+                    'division': division,
                 }
             )
             match_pk = match.pk
@@ -316,65 +349,66 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
                 match.home_team = home_team_name
                 match.away_team = away_team_name
                 match.match_date = match_date
+                match.tournament = tournament
+                match.division = division
                 match.save()
                 match.plays.all().delete()
 
-            # Procesar CSV con validación de cabeceras
-            try:
-                data_set = read_uploaded_csv_text(csv_file)
-                reader = make_dict_reader_from_text(data_set)
-                ok, msg, header_map = validate_headers_flexible(reader.fieldnames)
-                if not ok:
-                    messages.error(self.request, msg)
-                    # Renderizar misma vista para mostrar el mensaje inmediatamente
+            # Procesar CSV con validación de cabeceras (opcional)
+            if csv_file:
+                try:
+                    data_set = read_uploaded_csv_text(csv_file)
+                    reader = make_dict_reader_from_text(data_set)
+                    ok, msg, header_map = validate_headers_flexible(reader.fieldnames)
+                    if not ok:
+                        messages.error(self.request, msg)
+                        return self.render_to_response(self.get_context_data(form=form))
+                    plays_to_create = []
+                    count = 0
+                    for row in reader:
+                        plays_to_create.append(Play(
+                            match=match,
+                            jugada=(row.get(header_map['JUGADA']) or '').strip(),
+                            arbitro=(row.get(header_map['ARBITRO']) or '').strip(),
+                            canal_de_inicio=(row.get(header_map['CANAL DE INICIO']) or '').strip(),
+                            evento=(row.get(header_map['EVENTO']) or '').strip(),
+                            equipo=(row.get(header_map['EQUIPO']) or '').strip(),
+                            fin=parse_time_to_seconds(row.get(header_map['FIN']) or ''),
+                            ficha=(row.get(header_map['FICHA']) or '').strip(),
+                            inicia=(row.get(header_map['INICIA']) or '').strip(),
+                            inicio=parse_time_to_seconds(row.get(header_map['INICIO']) or ''),
+                            marcador_final=(row.get(header_map['MARCADOR FINAL']) or '').strip(),
+                            termina=(row.get(header_map['TERMINA']) or '').strip(),
+                            tiempo=(row.get(header_map['TIEMPO']) or '').strip(),
+                            torneo=(row.get(header_map['TORNEO']) or '').strip(),
+                            zona_fin=(row.get(header_map['ZONA FIN']) or '').strip(),
+                            zona_inicio=(row.get(header_map['ZONA INICIO']) or '').strip(),
+                            resultado=(row.get(header_map['RESULTADO']) or '').strip(),
+                            jugadores=(row.get(header_map['JUGADORES']) or '').strip(),
+                            sigue_con=(row.get(header_map['SIGUE CON']) or '').strip(),
+                            pos_tiro=(row.get(header_map['POS TIRO']) or '').strip(),
+                            set=(row.get(header_map['SET']) or '').strip(),
+                            tiro=(row.get(header_map['TIRO']) or '').strip(),
+                            tipo=(row.get(header_map['TIPO']) or '').strip(),
+                            accion=(row.get(header_map['ACCION']) or '').strip(),
+                            termina_en=(row.get(header_map.get('TERMINA EN','')) or '').strip(),
+                            sancion=(row.get(header_map['SANCION']) or '').strip(),
+                            situacion=(row.get(header_map.get('SITUACION','')) or '').strip(),
+                            transicion=(row.get(header_map['TRANSICION']) or '').strip(),
+                            situacion_penal=(row.get(header_map.get('SITUACION PENAL','')) or '').strip(),
+                            nueva_categoria=(row.get(header_map.get('NUEVA CATEGORIA','')) or '').strip(),
+                            acercar=(row.get(header_map.get('ACERCAR','')) or '').strip(),
+                            alejar=(row.get(header_map.get('ALEJAR','')) or '').strip(),
+                        ))
+                        count += 1
+                    if plays_to_create:
+                        Play.objects.bulk_create(plays_to_create, batch_size=1000)
+                        messages.success(self.request, f"Se cargaron {count} jugadas al partido.")
+                    else:
+                        messages.warning(self.request, "El archivo CSV no contenía jugadas válidas.")
+                except Exception as e:
+                    messages.error(self.request, f"Error al procesar el archivo CSV: {e}")
                     return self.render_to_response(self.get_context_data(form=form))
-                plays_to_create = []
-                count = 0
-                for row in reader:
-                    plays_to_create.append(Play(
-                        match=match,
-                        jugada=(row.get(header_map['JUGADA']) or '').strip(),
-                        arbitro=(row.get(header_map['ARBITRO']) or '').strip(),
-                        canal_de_inicio=(row.get(header_map['CANAL DE INICIO']) or '').strip(),
-                        evento=(row.get(header_map['EVENTO']) or '').strip(),
-                        equipo=(row.get(header_map['EQUIPO']) or '').strip(),
-                        fin=parse_time_to_seconds(row.get(header_map['FIN']) or ''),
-                        ficha=(row.get(header_map['FICHA']) or '').strip(),
-                        inicia=(row.get(header_map['INICIA']) or '').strip(),
-                        inicio=parse_time_to_seconds(row.get(header_map['INICIO']) or ''),
-                        marcador_final=(row.get(header_map['MARCADOR FINAL']) or '').strip(),
-                        termina=(row.get(header_map['TERMINA']) or '').strip(),
-                        tiempo=(row.get(header_map['TIEMPO']) or '').strip(),
-                        torneo=(row.get(header_map['TORNEO']) or '').strip(),
-                        zona_fin=(row.get(header_map['ZONA FIN']) or '').strip(),
-                        zona_inicio=(row.get(header_map['ZONA INICIO']) or '').strip(),
-                        resultado=(row.get(header_map['RESULTADO']) or '').strip(),
-                        jugadores=(row.get(header_map['JUGADORES']) or '').strip(),
-                        sigue_con=(row.get(header_map['SIGUE CON']) or '').strip(),
-                        pos_tiro=(row.get(header_map['POS TIRO']) or '').strip(),
-                        set=(row.get(header_map['SET']) or '').strip(),
-                        tiro=(row.get(header_map['TIRO']) or '').strip(),
-                        tipo=(row.get(header_map['TIPO']) or '').strip(),
-                        accion=(row.get(header_map['ACCION']) or '').strip(),
-                        termina_en=(row.get(header_map.get('TERMINA EN','')) or '').strip(),
-                        sancion=(row.get(header_map['SANCION']) or '').strip(),
-                        situacion=(row.get(header_map.get('SITUACION','')) or '').strip(),
-                        transicion=(row.get(header_map['TRANSICION']) or '').strip(),
-                        situacion_penal=(row.get(header_map.get('SITUACION PENAL','')) or '').strip(),
-                        nueva_categoria=(row.get(header_map.get('NUEVA CATEGORIA','')) or '').strip(),
-                        acercar=(row.get(header_map.get('ACERCAR','')) or '').strip(),
-                        alejar=(row.get(header_map.get('ALEJAR','')) or '').strip(),
-                    ))
-                    count += 1
-                if plays_to_create:
-                    Play.objects.bulk_create(plays_to_create, batch_size=1000)
-                    messages.success(self.request, f"Se cargaron {count} jugadas al partido.")
-                else:
-                    messages.warning(self.request, "El archivo CSV no contenía jugadas válidas.")
-            except Exception as e:
-                messages.error(self.request, f"Error al procesar el archivo CSV: {e}")
-                # Renderizamos aquí para que el error sea visible con SweetAlert
-                return self.render_to_response(self.get_context_data(form=form))
 
         # En vez de redirigir, renderizamos la misma vista para mostrar el mensaje y opciones
         return self.render_to_response(self.get_context_data(form=form))
@@ -422,6 +456,7 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
     
 # @method_decorator(cache_page(60*5), name='dispatch')
 class MatchPlayerView(LoginRequiredMixin, DetailView):
+    # Reproductor del partido y exportación CSV del conjunto filtrado/seleccionado.
     model = Match
     template_name = 'player/match_player.html'
     context_object_name = 'match'
@@ -558,37 +593,86 @@ class MatchPlayerView(LoginRequiredMixin, DetailView):
         return context
     
 class MatchListView(LoginRequiredMixin, ListView):
+    # Listado de partidos con visibilidad condicional y múltiples filtros.
     model = Match
     template_name = 'player/match_list.html'
     context_object_name = 'matches'
-    paginate_by = 10 # Mostramos 12 partidos por página
+    paginate_by = 10
     login_url = reverse_lazy('player:login')
     redirect_field_name = 'next'
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Match.objects.all().select_related()
+        queryset = Match.objects.all().select_related('tournament', 'tournament__country')
 
-        # --- Filtrado para usuarios normales basado en ALIAS del club (fallback al nombre si no hay alias) ---
-        if user.is_authenticated and not user.is_staff and hasattr(user, 'profile') and user.profile.team:
-            team = user.profile.team
-            team_identifier = (team.alias or team.name).strip()
-
+        if user.is_authenticated and not user.is_staff:
+            participations = CoachTournamentTeamParticipation.objects.filter(user=user, active=True).select_related('team')
             filter_type = self.request.GET.get('filter', 'own')
+            if participations.exists():
+                user_team_names = set()
+                seasons = set()
+                for p in participations:
+                    if p.season:
+                        seasons.add(p.season.strip())
+                    team_name = (p.team.alias or p.team.name).strip()
+                    if team_name:
+                        user_team_names.add(team_name.upper())
 
-            team_q = Q(home_team__iexact=team_identifier) | Q(away_team__iexact=team_identifier)
+                if filter_type == 'rivals':
+                    season_q = Q()
+                    for s in seasons:
+                        season_q |= Q(tournament__season__iexact=s)
+                    if season_q:
+                        queryset = queryset.filter(season_q)
 
-            if filter_type == 'own':
-                queryset = queryset.filter(team_q)
-            elif filter_type == 'rivals':
-                queryset = queryset.exclude(team_q)
-        
-        # --- Filtros de búsqueda ---
+                    exclusion_q = Q()
+                    for name in user_team_names:
+                        exclusion_q |= Q(home_team__iexact=name) | Q(away_team__iexact=name)
+                    if exclusion_q:
+                        queryset = queryset.exclude(exclusion_q)
+                else:  # 'own' por defecto
+                    visibility_q = Q()
+                    for p in participations:
+                        team_name = (p.team.alias or p.team.name).strip()
+                        if team_name:
+                            visibility_q |= (
+                                (Q(home_team__iexact=team_name) | Q(away_team__iexact=team_name))
+                                & Q(tournament__season__iexact=p.season)
+                            )
+                    if visibility_q:
+                        queryset = queryset.filter(visibility_q)
+            else:
+                if hasattr(user, 'profile') and user.profile.team:
+                    team = user.profile.team
+                    team_identifier = (team.alias or team.name).strip()
+                    if filter_type == 'rivals':
+                        queryset = queryset.exclude(Q(home_team__iexact=team_identifier) | Q(away_team__iexact=team_identifier))
+                    else:
+                        queryset = queryset.filter(Q(home_team__iexact=team_identifier) | Q(away_team__iexact=team_identifier))
+
+        tournament_id = self.request.GET.get('tournament')
+        if tournament_id and str(tournament_id).isdigit():
+            queryset = queryset.filter(tournament__id=int(tournament_id))
+
+        division_code = self.request.GET.get('division')
+        if division_code:
+            queryset = queryset.filter(division=division_code)
+
+        country_id = self.request.GET.get('country')
+        if country_id:
+            try:
+                queryset = queryset.filter(tournament__country_id=int(country_id))
+            except (TypeError, ValueError):
+                pass
+
+        season = (self.request.GET.get('season') or '').strip()
+        if season:
+            queryset = queryset.filter(tournament__season__iexact=season)
+
         q = self.request.GET.get('q', '').strip()
         if q:
             queryset = queryset.filter(Q(home_team__icontains=q) | Q(away_team__icontains=q))
-        
-        # --- Fechas con validación y feedback ---
+
         date_from_str = self.request.GET.get('date_from', '').strip()
         date_to_str = self.request.GET.get('date_to', '').strip()
         date_from = None
@@ -603,23 +687,18 @@ class MatchListView(LoginRequiredMixin, ListView):
                 date_to = datetime.date.fromisoformat(date_to_str)
             except ValueError:
                 messages.warning(self.request, "Fecha 'Hasta' inválida. Use AAAA-MM-DD.")
-        # Filtrar por la fecha real del partido (match_date) para coherencia con la UI
         if date_from:
             queryset = queryset.filter(match_date__gte=date_from)
         if date_to:
             queryset = queryset.filter(match_date__lte=date_to)
 
-        # --- Anotar resultado del partido desde Play (primer valor no vacío) ---
-        # Antes: resultado -> Ahora: marcador_final
         result_sq = Play.objects.filter(match=OuterRef('pk')).exclude(marcador_final='').values('marcador_final')[:1]
         queryset = queryset.annotate(match_result=Subquery(result_sq))
 
-        # --- Anotar si el partido tiene jugadas ---
         has_plays_exists = Play.objects.filter(match=OuterRef('pk'))
         queryset = queryset.annotate(has_plays=Exists(has_plays_exists))
 
-        # --- LÓGICA DE ORDENAMIENTO SEGURA ---
-        sort_by = self.request.GET.get('sort', '-match_date') # Por defecto, por fecha del partido
+        sort_by = self.request.GET.get('sort', '-match_date')
         valid_sort_options = ['home_team', 'away_team', 'created_at', '-created_at', 'match_date', '-match_date']
         if sort_by in valid_sort_options:
             if sort_by in ('match_date', '-match_date'):
@@ -628,25 +707,46 @@ class MatchListView(LoginRequiredMixin, ListView):
                 queryset = queryset.order_by(sort_by)
         else:
             queryset = queryset.order_by('-match_date', '-created_at')
-            
+
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Estado de selects
         context['current_filter'] = self.request.GET.get('filter', 'own')
         context['current_sort'] = self.request.GET.get('sort', '-match_date')
-        # Campos de búsqueda/fechas usados por la plantilla
+        context['current_tournament'] = self.request.GET.get('tournament', '')
+        context['current_division'] = self.request.GET.get('division', '')
+        context['current_country'] = self.request.GET.get('country', '')
+        context['current_season'] = self.request.GET.get('season', '')
         context['current_q'] = self.request.GET.get('q', '')
         context['current_date_from'] = self.request.GET.get('date_from', '')
         context['current_date_to'] = self.request.GET.get('date_to', '')
-        # Querystring para paginación (sin el parámetro page)
         qs = self.request.GET.copy()
         qs.pop('page', None)
         context['querystring'] = qs.urlencode()
+
+        context['tournament_options'] = Tournament.objects.select_related('country').order_by('country__name', 'name', 'season')
+        context['division_options'] = Match.Division.choices
+        context['country_options'] = Country.objects.order_by('name')
+        context['season_options'] = (
+            Tournament.objects.exclude(season='').values_list('season', flat=True).order_by('season').distinct()
+        )
+        user = self.request.user
+        has_filters = any([
+            bool(context['current_q'].strip()),
+            bool(context['current_date_from'].strip()),
+            bool(context['current_date_to'].strip()),
+            bool(context['current_tournament']),
+            bool(context['current_division']),
+            bool(context['current_country']),
+            bool(context['current_season']),
+            (not user.is_staff and context['current_filter'] != 'own')
+        ])
+        context['has_filters'] = has_filters
         return context
     
 class MatchPlaysDataView(LoginRequiredMixin, View):
+    # Endpoint JSON para DataTables con filtros, búsqueda, orden y paginación.
     def get(self, request, pk):
         match = get_object_or_404(Match, pk=pk)
         base_qs = Play.objects.filter(match=match).select_related('match')
@@ -740,6 +840,7 @@ class MatchPlaysDataView(LoginRequiredMixin, View):
 
 # --- Nueva vista: subir/actualizar CSV desde el reproductor ---
 class MatchCSVUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
+    # Actualiza jugadas de un partido desde el reproductor, reemplazando las anteriores.
     login_url = reverse_lazy('player:login')
     redirect_field_name = 'next'
     raise_exception = True
@@ -822,6 +923,7 @@ import json
 from .models import SelectionPreset, Play, Match
 
 class MatchSelectionPresetListCreateView(LoginRequiredMixin, View):
+    # Listar/crear presets de selección de jugadas asociados a un usuario y partido.
     def get(self, request, pk):
         # lista presets del usuario para el partido
         presets = SelectionPreset.objects.filter(user=request.user, match_id=pk)\
@@ -858,6 +960,7 @@ class MatchSelectionPresetListCreateView(LoginRequiredMixin, View):
         return JsonResponse({'id': preset.id, 'name': preset.name, 'updated_at': preset.updated_at})
 
 class MatchSelectionPresetDetailView(LoginRequiredMixin, View):
+    # Detalle/eliminación de un preset. Sólo propietario o staff tienen acceso.
     def get(self, request, pk, preset_id):
         preset = get_object_or_404(SelectionPreset, id=preset_id, match_id=pk)
         if preset.user_id != request.user.id and not request.user.is_staff:

@@ -7,7 +7,7 @@ from django.utils.html import format_html
 from urllib.parse import urlencode
 from django.contrib import messages
 
-from .models import Match, Play, Team, Profile
+from .models import Match, Play, Team, Profile, Country, Tournament, CoachTournamentTeamParticipation
 
 # --- Configuración para el modelo User y Profile ---
 class ProfileInline(admin.StackedInline):
@@ -37,10 +37,10 @@ admin.site.register(User, UserAdmin)
 
 @admin.register(Match)
 class MatchAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'video_id', 'match_date', 'created_at', 'plays_count', 'ver_jugadas', 'eliminar')
-    search_fields = ('home_team', 'away_team', 'video_id')
-    list_filter = ('match_date', 'created_at')
-    fields = ('home_team', 'away_team', 'video_id', 'match_date')
+    list_display = ('__str__', 'video_id', 'match_date', 'tournament', 'division', 'created_at', 'plays_count', 'ver_jugadas', 'eliminar')
+    search_fields = ('home_team', 'away_team', 'video_id', 'tournament__name')
+    list_filter = ('match_date', 'created_at', 'tournament', 'division')
+    fields = ('home_team', 'away_team', 'video_id', 'match_date', 'tournament', 'division')
     actions = ['delete_matches_and_plays']
 
     def plays_count(self, obj):
@@ -78,4 +78,24 @@ class PlayAdmin(admin.ModelAdmin):
     search_fields = ('evento', 'equipo', 'zona_inicio', 'zona_fin', 'inicia')
 
 # Registramos Team de forma simple, ya que no tiene personalización
-admin.site.register(Team)
+@admin.register(Team)
+class TeamAdmin(admin.ModelAdmin):
+    search_fields = ('name', 'alias')
+    list_display = ('name', 'alias')
+@admin.register(Country)
+class CountryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'iso_code')
+    search_fields = ('name', 'iso_code', 'slug')
+
+@admin.register(Tournament)
+class TournamentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'country', 'season', 'level', 'short_name')
+    list_filter = ('country', 'season')
+    search_fields = ('name', 'short_name', 'level')
+
+@admin.register(CoachTournamentTeamParticipation)
+class CoachTournamentTeamParticipationAdmin(admin.ModelAdmin):
+    list_display = ('user', 'team', 'season', 'active', 'created_at')
+    list_filter = ('active', 'season')
+    search_fields = ('user__username', 'team__name', 'team__alias', 'season')
+    autocomplete_fields = ('user', 'team')

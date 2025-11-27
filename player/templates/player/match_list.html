@@ -6,7 +6,7 @@
 <div class="flex justify-between items-center mb-6">
     <div>
         <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Partidos Cargados</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Explorá los partidos agrupados por fecha de juego (sábados).</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Explorá los partidos agrupados por fecha de juego.</p>
     </div>
     {% if user.is_staff %}
     <a href="{% url 'player:upload_analysis' %}" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">
@@ -17,7 +17,7 @@
 
 {% if user.is_staff %}
 <div class="mb-4">
-    <form id="staff-sort-form" method="GET" action="{% url 'player:match_list' %}" class="flex flex-wrap items-end gap-4">
+  <form id="staff-sort-form" method="GET" action="{% url 'player:match_list' %}" class="flex flex-wrap items-end gap-4">
         <div>
             <label for="sort-by" class="block text-sm font-medium text-gray-900 dark:text-white">Ordenar por</label>
             <select id="sort-by" name="sort" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
@@ -29,6 +29,46 @@
                 <option value="away_team" {% if current_sort == 'away_team' %}selected{% endif %}>Equipo Visitante (A-Z)</option>
             </select>
         </div>
+
+    <div>
+      <label for="tournament" class="block text-sm font-medium text-gray-900 dark:text-white">Torneo</label>
+      <select id="tournament" name="tournament" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="">Todos</option>
+        {% for t in tournament_options %}
+          <option value="{{ t.id }}" {% if current_tournament|default:'' == t.id|stringformat:'s' %}selected{% endif %}>
+          {% if t.short_name %}{{ t.short_name }} — {% endif %}{% if t.country %}{{ t.country.name }} – {% endif %}{{ t.name }}{% if t.season %} ({{ t.season }}){% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+        <div>
+            <label for="country" class="block text-sm font-medium text-gray-900 dark:text-white">País</label>
+            <select id="country" name="country" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">Todos</option>
+                {% for c in country_options %}
+                  <option value="{{ c.id }}" {% if current_country|default:'' == c.id|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="season" class="block text-sm font-medium text-gray-900 dark:text-white">Temporada</label>
+            <select id="season" name="season" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">Todas</option>
+                {% for s in season_options %}
+                  <option value="{{ s }}" {% if current_season|default:'' == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+    <div>
+      <label for="division" class="block text-sm font-medium text-gray-900 dark:text-white">División</label>
+      <select id="division" name="division" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="">Todas</option>
+        {% for val, label in division_options %}
+          <option value="{{ val }}" {% if current_division == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
 
         <div class="grow min-w-[220px]">
             <label for="q" class="block text-sm font-medium text-gray-900 dark:text-white">Buscar equipo</label>
@@ -44,15 +84,16 @@
             <input type="date" id="date_to" name="date_to" value="{{ current_date_to }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
         </div>
 
-        <button type="submit" class="p-2.5 h-[42px] text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800">Aplicar</button>
-        {% if current_q or current_date_from or current_date_to %}
-        <a href="{% url 'player:match_list' %}?sort={{ current_sort }}" class="p-2.5 h-[42px] text-sm font-medium text-blue-700 bg-white border border-blue-700 rounded-lg hover:bg-blue-50">Limpiar</a>
-        {% endif %}
+    <a href="{% url 'player:match_list' %}?sort={{ current_sort }}"
+       class="p-2.5 h-[42px] text-sm font-medium rounded-lg border
+          {% if has_filters %} text-blue-700 bg-white border-blue-700 hover:bg-blue-50 cursor-pointer {% else %} text-gray-400 bg-white border-gray-300 opacity-50 cursor-not-allowed pointer-events-none {% endif %}">
+      Limpiar
+    </a>
     </form>
 </div>
 {% else %}
 <div class="mb-4">
-    <form id="user-filter-form" method="GET" action="{% url 'player:match_list' %}" class="flex flex-wrap items-end gap-4">
+  <form id="user-filter-form" method="GET" action="{% url 'player:match_list' %}" class="flex flex-wrap items-end gap-4">
         <div>
             <label for="filter" class="block text-sm font-medium text-gray-900 dark:text-white">Ver</label>
             <select id="filter" name="filter" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
@@ -73,6 +114,44 @@
             <label for="q_user" class="block text-sm font-medium text-gray-900 dark:text-white">Buscar equipo</label>
             <input type="text" id="q_user" name="q" value="{{ current_q }}" placeholder="Nombre del equipo" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
         </div>
+    <div>
+      <label for="tournament_user" class="block text-sm font-medium text-gray-900 dark:text-white">Torneo</label>
+      <select id="tournament_user" name="tournament" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="">Todos</option>
+        {% for t in tournament_options %}
+          <option value="{{ t.id }}" {% if current_tournament|default:'' == t.id|stringformat:'s' %}selected{% endif %}>
+          {% if t.short_name %}{{ t.short_name }} — {% endif %}{% if t.country %}{{ t.country.name }} – {% endif %}{{ t.name }}{% if t.season %} ({{ t.season }}){% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+        <div>
+            <label for="country_user" class="block text-sm font-medium text-gray-900 dark:text-white">País</label>
+            <select id="country_user" name="country" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">Todos</option>
+                {% for c in country_options %}
+                  <option value="{{ c.id }}" {% if current_country|default:'' == c.id|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="season_user" class="block text-sm font-medium text-gray-900 dark:text-white">Temporada</label>
+            <select id="season_user" name="season" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">Todas</option>
+                {% for s in season_options %}
+                  <option value="{{ s }}" {% if current_season|default:'' == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    <div>
+      <label for="division_user" class="block text-sm font-medium text-gray-900 dark:text-white">División</label>
+      <select id="division_user" name="division" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="">Todas</option>
+        {% for val, label in division_options %}
+          <option value="{{ val }}" {% if current_division == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
         <div>
             <label for="date_from_user" class="block text-sm font-medium text-gray-900 dark:text-white">Desde</label>
             <input type="date" id="date_from_user" name="date_from" value="{{ current_date_from }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
@@ -81,10 +160,11 @@
             <label for="date_to_user" class="block text-sm font-medium text-gray-900 dark:text-white">Hasta</label>
             <input type="date" id="date_to_user" name="date_to" value="{{ current_date_to }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
         </div>
-        <button type="submit" class="p-2.5 h-[42px] text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800">Buscar</button>
-        {% if current_q or current_date_from or current_date_to or current_filter != 'own' or current_sort != '-match_date' %}
-        <a href="{% url 'player:match_list' %}" class="p-2.5 h-[42px] text-sm font-medium text-blue-700 bg-white border border-blue-700 rounded-lg hover:bg-blue-50">Limpiar</a>
-        {% endif %}
+    <a href="{% url 'player:match_list' %}?sort={{ current_sort }}"
+       class="p-2.5 h-[42px] text-sm font-medium rounded-lg border
+          {% if has_filters %} text-blue-700 bg-white border-blue-700 hover:bg-blue-50 cursor-pointer {% else %} text-gray-400 bg-white border-gray-300 opacity-50 cursor-not-allowed pointer-events-none {% endif %}">
+      Limpiar
+    </a>
     </form>
 </div>
 {% endif %}
@@ -101,14 +181,15 @@
     {% endif %}
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
       {% for match in group.list %}
-        <div class="relative max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
+        <div class="relative max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700 cursor-pointer"
+             data-href="{% url 'player:play_match' pk=match.id %}" role="button" tabindex="0">
           <div class="flex items-start">
-            <a href="{% url 'player:play_match' pk=match.id %}" class="group inline-flex items-center gap-2">
+            <div class="group inline-flex items-center gap-2">
               <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white group-hover:underline">{{ match.home_team }} vs. {{ match.away_team }}{% if match.match_result %} ({{ match.match_result }}){% endif %}</h5>
               {% if not match.has_plays %}
                 <span class="mb-2 text-[11px] px-2 py-0.5 rounded-full border border-amber-400/50 text-amber-700 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-500/10">Sin jugadas</span>
               {% endif %}
-            </a>
+            </div>
             {% if user.is_staff %}
               <button id="kebabBtn-{{ match.id }}" data-dropdown-toggle="kebabMenu-{{ match.id }}" class="absolute top-2 right-2 inline-flex items-center justify-center p-2.5 leading-none text-sm font-medium text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 overflow-visible" type="button" aria-expanded="false">
                 <svg class="w-6 h-6" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
@@ -125,6 +206,15 @@
               </div>
             {% endif %}
           </div>
+          {% if match.tournament %}
+            {% with abbr=match.tournament.short_name season=match.tournament.season %}
+              {% if abbr or season %}
+                <p class="text-xs mb-1 text-gray-600 dark:text-gray-300">
+                  Torneo: {% if abbr %}{{ abbr }}{% endif %}{% if season %} {% if abbr %}- {% endif %}({{ season }}){% endif %}
+                </p>
+              {% endif %}
+            {% endwith %}
+          {% endif %}
           <p class="font-normal text-sm text-gray-500 dark:text-gray-400">Cargado: {{ match.created_at|date:"d M Y" }}</p>
         </div>
 
@@ -145,7 +235,7 @@
                   {% csrf_token %}
                   <div>
                     <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Archivo CSV</label>
-                    <input type="file" name="csv_file" accept=".csv" required class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600" />
+                    <input type="file" name="csv_file" accept=".csv" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600" />
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Admite UTF-8/UTF-16/Windows-1252; delimitadores: coma, ;, tab, |</p>
                   </div>
                   <div class="flex justify-end gap-2">
@@ -202,6 +292,13 @@
     const userForm = document.getElementById('user-filter-form');
     const filterSelect = document.getElementById('filter');
     const sortUserSelect = document.getElementById('sort-user');
+  const tournamentUserSelect = document.getElementById('tournament_user');
+  const divisionUserSelect = document.getElementById('division_user');
+  const countryUserSelect = document.getElementById('country_user');
+  const seasonUserSelect = document.getElementById('season_user');
+    const qUserInput = document.getElementById('q_user');
+    const dateFromUser = document.getElementById('date_from_user');
+    const dateToUser = document.getElementById('date_to_user');
     function submitForm(form) {
       if (!form) return;
       form.requestSubmit ? form.requestSubmit() : form.submit();
@@ -209,13 +306,62 @@
     if (userForm) {
       if (filterSelect) filterSelect.addEventListener('change', () => submitForm(userForm));
       if (sortUserSelect) sortUserSelect.addEventListener('change', () => submitForm(userForm));
+  if (tournamentUserSelect) tournamentUserSelect.addEventListener('change', () => submitForm(userForm));
+  if (divisionUserSelect) divisionUserSelect.addEventListener('change', () => submitForm(userForm));
+  if (countryUserSelect) countryUserSelect.addEventListener('change', () => submitForm(userForm));
+  if (seasonUserSelect) seasonUserSelect.addEventListener('change', () => submitForm(userForm));
+      if (dateFromUser) dateFromUser.addEventListener('change', () => submitForm(userForm));
+      if (dateToUser) dateToUser.addEventListener('change', () => submitForm(userForm));
+      if (qUserInput) qUserInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitForm(userForm); });
     }
 
     // Staff: auto-submit al cambiar ordenamiento
     const staffSort = document.getElementById('sort-by');
-    if (staffSort && staffSort.form) {
-      staffSort.addEventListener('change', () => submitForm(staffSort.form));
+  const staffForm = document.getElementById('staff-sort-form');
+  const tournamentSelect = document.getElementById('tournament');
+  const divisionSelect = document.getElementById('division');
+  const countrySelect = document.getElementById('country');
+  const seasonSelect = document.getElementById('season');
+    const qInput = document.getElementById('q');
+    const dateFrom = document.getElementById('date_from');
+    const dateTo = document.getElementById('date_to');
+    if (staffSort && staffSort.form) staffSort.addEventListener('change', () => submitForm(staffSort.form));
+    if (staffForm) {
+      if (tournamentSelect) tournamentSelect.addEventListener('change', () => submitForm(staffForm));
+      if (divisionSelect) divisionSelect.addEventListener('change', () => submitForm(staffForm));
+      if (countrySelect) countrySelect.addEventListener('change', () => submitForm(staffForm));
+      if (seasonSelect) seasonSelect.addEventListener('change', () => submitForm(staffForm));
+      if (dateFrom) dateFrom.addEventListener('change', () => submitForm(staffForm));
+      if (dateTo) dateTo.addEventListener('change', () => submitForm(staffForm));
+      if (qInput) qInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitForm(staffForm); });
     }
+
+    // Hacer la tarjeta completa clickeable, evitando capturar clicks en botones/menus/links
+    function isInteractive(el) {
+      if (!el) return false;
+      const tag = el.tagName ? el.tagName.toLowerCase() : '';
+      if (tag === 'button' || tag === 'a' || tag === 'input' || tag === 'select' || tag === 'textarea' || tag === 'label') return true;
+      if (el.hasAttribute && (el.hasAttribute('data-dropdown-toggle') || el.hasAttribute('data-modal-target') || el.getAttribute('role') === 'menu')) return true;
+      return false;
+    }
+    document.querySelectorAll('[data-href]').forEach(card => {
+      const href = card.getAttribute('data-href');
+      if (!href) return;
+      card.addEventListener('click', (e) => {
+        // Ignorar si el click ocurrió en un elemento interactivo o dentro de él
+        if (isInteractive(e.target) || e.target.closest('button, a, [data-dropdown-toggle], [data-modal-target], [role="menu"]')) {
+          return;
+        }
+        window.location.href = href;
+      });
+      // Accesibilidad: Enter o Space navegan
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          window.location.href = href;
+        }
+      });
+    });
   });
 </script>
 

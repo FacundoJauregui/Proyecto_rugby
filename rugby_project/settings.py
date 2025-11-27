@@ -28,14 +28,30 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
 # Comma-separated list, e.g. "example.com,api.example.com"
 _allowed_hosts = os.getenv('DJANGO_ALLOWED_HOSTS', '').strip()
-ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts.split(',') if h.strip()] or []
+# Si la variable DJANGO_ALLOWED_HOSTS no está definida:
+#  - en desarrollo permitimos localhost
+#  - en producción podrías querer fallar; opcionalmente se agrega '.run.app' para Cloud Run
+# Recomendado: definir DJANGO_ALLOWED_HOSTS="localhost,127.0.0.1,rugby-app-50727258277.southamerica-east1.run.app" (o tu dominio personalizado)
+parsed_hosts = [h.strip() for h in _allowed_hosts.split(',') if h.strip()]
+if not parsed_hosts:
+    # Fallback seguro para dev; en Cloud Run añadimos automáticamente el comodín .run.app
+    parsed_hosts = ['localhost', '127.0.0.1']
+    if 'K_SERVICE' in os.environ:  # Estamos en Cloud Run
+        parsed_hosts.append('.run.app')  # acepta cualquier servicio *.run.app
+ALLOWED_HOSTS = parsed_hosts
 
 # Comma-separated with scheme, e.g. "https://example.com,https://api.example.com"
 _csrf_origins = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').strip()
-CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()] or [
-    'http://127.0.0.1:8000',
-    'http://localhost:8000',
-]
+_parsed_csrf = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+if not _parsed_csrf:
+    # Dev defaults; para producción añade tu dominio con https
+    _parsed_csrf = [
+        'http://127.0.0.1:8000',
+        'http://localhost:8000',
+    ]
+    # Ejemplo para Cloud Run (ajusta al host real):
+    # _parsed_csrf.append('https://rugby-app-50727258277.southamerica-east1.run.app')
+CSRF_TRUSTED_ORIGINS = _parsed_csrf
 
 
 # Application definition

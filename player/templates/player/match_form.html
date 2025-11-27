@@ -24,13 +24,30 @@
             <label for="{{ form.match_date.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.match_date.label }}</label>
             <input type="date" name="{{ form.match_date.name }}" id="{{ form.match_date.id_for_label }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" required>
         </div>
+    <div>
+      <label for="{{ form.tournament.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.tournament.label }}</label>
+      <select name="{{ form.tournament.name }}" id="{{ form.tournament.id_for_label }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="">-- Seleccioná un torneo --</option>
+        {% for t in form.fields.tournament.queryset %}
+          <option value="{{ t.id }}">{% if t.country %}{{ t.country.name }} - {% endif %}{{ t.name }}{% if t.season %} ({{ t.season }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+        <label for="{{ form.division.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.division.label }}</label>
+        <select name="{{ form.division.name }}" id="{{ form.division.id_for_label }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            {% for val, label in form.fields.division.choices %}
+                <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
         <div>
             <label for="{{ form.youtube_url.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.youtube_url.label }}</label>
             <input type="url" name="{{ form.youtube_url.name }}" id="{{ form.youtube_url.id_for_label }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="https://www.youtube.com/watch?v=..." required>
         </div>
         <div>
             <label for="{{ form.csv_file.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.csv_file.label }}</label>
-            <input type="file" name="{{ form.csv_file.name }}" id="{{ form.csv_file.id_for_label }}" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" required>
+            <input type="file" name="{{ form.csv_file.name }}" id="{{ form.csv_file.id_for_label }}" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
         </div>
         <button type="submit" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 text-center">
             Cargar y Analizar

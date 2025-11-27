@@ -23,7 +23,9 @@ RUN python -m pip install --upgrade pip setuptools wheel && \
 COPY . .
 
 # Collect static files
-ENV DJANGO_SETTINGS_MODULE=rugby_project.settings
+# Aseguramos DEBUG=False durante collectstatic para generar manifest de WhiteNoise
+ENV DJANGO_SETTINGS_MODULE=rugby_project.settings \
+    DJANGO_DEBUG=False
 RUN python manage.py collectstatic --noinput || true
 
 # Expose port
