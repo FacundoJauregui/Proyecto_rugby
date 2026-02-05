@@ -1,0 +1,61 @@
+1 hacer login con tu cuenta de gcp y conectar con el proyecto:
+
+gcloud auth login
+
+gcloud config set project spheric-wonder-473601-a9
+
+2 borrar y crear de nuevo la instancia en cloud sql:
+
+gcloud sql instances create rugby-sql --database-version=POSTGRES_17 --edition=ENTERPRISE --tier=db-f1-micro --region=southamerica-east1 --storage-size=20 --storage-auto-increase --availability-type=zonal --enable-point-in-time-recovery
+
+gcloud sql users set-password postgres --instance=rugby-sql --password="141304"
+
+gcloud sql databases create rugby_player_db --instance=rugby-sql
+
+gcloud sql users create appuser --instance=rugby-sql --password="141304"
+
+--variable de conexion:spheric-wonder-473601-a9:southamerica-east1:rugby-sql
+
+3 conectarme al proxy para hacer conexion con la base de datos local
+
+gcloud auth application-default login
+
+# Supongamos que descargaste cloud-sql-proxy.exe en C:\tools\cloud-sql-proxy\
+
+cd C:\tools\cloud-sql-proxy
+
+.\cloud-sql-proxy.exe --address 127.0.0.1 --port 5433 spheric-wonder-473601-a9:southamerica-east1:rugby-sql
+
+4 accionar el db_dump_restore:
+
+.\scripts\db_dump_restore.ps1 -LocalHost "localhost" -LocalPort 5432 -LocalUser "postgres" -LocalDb "rugby_player_db" -CloudProxyHost "127.0.0.1" -CloudProxyPort 5433 -CloudDb "rugby_player_db" -CloudUser "postgres" -GrantAppUser -AppUser "appuser"
+
+5 crear roles y service account:
+
+gcloud iam service-accounts create rugby-run-sa --display-name "Cloud Run SA Rugby"
+
+gcloud projects add-iam-policy-binding spheric-wonder-473601-a9 --member="serviceAccount:rugby-run-sa@spheric-wonder-473601-a9.iam.gserviceaccount.com" --role="roles/cloudsql.client"
+
+gcloud projects add-iam-policy-binding spheric-wonder-473601-a9 --member="serviceAccount:rugby-run-sa@spheric-wonder-473601-a9.iam.gserviceaccount.com" --role="roles/run.invoker"
+
+6 hacer deploy de la imagen con el script: 
+
+$Project = "spheric-wonder-473601-a9"
+$Region  = "southamerica-east1"
+$Repo    = "rugby-repo"
+$Service = "rugby-app"
+$ImageName = "sportframe"
+$Tag = "db-connect"
+
+$Conn = "spheric-wonder-473601-a9:southamerica-east1:rugby-sql"
+$Env = "DB_ENGINE=django.db.backends.postgresql,DB_NAME=rugby_player_db,DB_USER=appuser,DB_PASSWORD=141304,DB_HOST=/cloudsql/$Conn,DB_PORT=,DJANGO_DEBUG=False"
+
+.\scripts\deploy_cloud_run.ps1 -Project $Project -Region $Region -Repo $Repo -Service $Service -ImageName $ImageName -Tag $Tag -ConnectionName $Conn -EnvVars $Env
+
+Migrar local y probar.
+Dump (-Fc) y restaurar a Cloud SQL.
+Conceder permisos a appuser.
+Deploy Cloud Run con socket y env vars.
+Ejecutar migraciones (si base restaurada no incluye últimas).
+Validar servicio (logs, endpoints).
+Ajustar escalado / recursos si hace falta.

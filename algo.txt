@@ -1,0 +1,1 @@
+$paths = [System.Environment]::GetEnvironmentVariable('Path','User') -split ';'if ($paths -notcontains $ffmpegPath) {[System.Environment]::SetEnvironmentVariable('Path', ($paths + $ffmpegPath -join ';'), 'User')}

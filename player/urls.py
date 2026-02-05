@@ -12,7 +12,8 @@ from .views import (
     MatchPlaysDataView,  # nuevo endpoint JSON
     MatchCSVUploadView,  # NUEVO: endpoint para subir CSV desde el reproductor
     MatchSelectionPresetListCreateView, 
-    MatchSelectionPresetDetailView
+    MatchSelectionPresetDetailView,
+    MatchSelectionPresetUploadCSVView,
 )
 app_name = 'player'
 
@@ -49,4 +50,5 @@ urlpatterns = [
     # NUEVO: presets de selección de partidos
     path('matches/<int:pk>/presets/', MatchSelectionPresetListCreateView.as_view(), name='match_presets'),
     path('matches/<int:pk>/presets/<int:preset_id>/', MatchSelectionPresetDetailView.as_view(), name='match_preset_detail'),
+    path('matches/<int:pk>/presets/upload-csv/', MatchSelectionPresetUploadCSVView.as_view(), name='match_preset_upload_csv'),
 ]
