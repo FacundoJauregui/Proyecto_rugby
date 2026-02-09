@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Estadísticas del Partido - SportFrame{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+<div class="max-w-7xl mx-auto">
+    <!-- Header con navegación -->
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <nav class="flex mb-2" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 text-sm">
+                    <li><a href="{% url 'player:dashboard' %}{% if request.GET.team %}?team={{ request.GET.team|urlencode }}{% elif match_stats.team_name %}?team={{ match_stats.team_name|urlencode }}{% endif %}" class="text-gray-500 dark:text-gray-400 hover:text-blue-600">Dashboard</a></li>
+                    <li><span class="mx-1 text-gray-400">/</span></li>
+                    <li class="text-gray-700 dark:text-gray-300">Partido #{{ match.id }}</li>
+                </ol>
+            </nav>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+                {{ match.home_team }} vs {{ match.away_team }}
+            </h1>
+            <p class="text-gray-600 dark:text-gray-400">
+                {% if match.match_date %}{{ match.match_date }}{% endif %}
+                {% if match.tournament %} • {{ match.tournament.name }}{% endif %}
+            </p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'player:play_match' pk=match.id %}" 
+               class="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2">
+                Ver Video
+            </a>
+            <a href="{% url 'player:dashboard' %}{% if request.GET.team %}?team={{ request.GET.team|urlencode }}{% elif match_stats.team_name %}?team={{ match_stats.team_name|urlencode }}{% endif %}"
+               class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+            </a>
+        </div>
+    </div>
+
+    {% if match_stats %}
+    <!-- Resumen del Partido -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <div class="grid grid-cols-3 gap-4 text-center">
+            <!-- Equipo Local -->
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                    {% if match_stats.is_home %}Tu equipo{% else %}Rival{% endif %}
+                </p>
+                <p class="text-2xl font-bold {% if match_stats.is_home %}text-blue-600 dark:text-blue-400{% else %}text-gray-700 dark:text-gray-300{% endif %}">
+                    {{ match.home_team }}
+                </p>
+                <p class="text-4xl font-bold mt-2 {% if match_stats.is_home and match_stats.result == 'W' %}text-green-600{% elif match_stats.is_home and match_stats.result == 'L' %}text-red-600{% else %}text-gray-600{% endif %}">
+                    {% if match_stats.is_home %}{{ match_stats.team_score }}{% else %}{{ match_stats.opp_score }}{% endif %}
+                </p>
+            </div>
+            
+            <!-- VS con indicador de resultado -->
+            <div class="flex flex-col items-center justify-center">
+                <span class="text-2xl font-light text-gray-400">VS</span>
+                {% if match_stats.result == 'W' %}
+                    <span class="mt-2 px-3 py-1 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded-full">VICTORIA</span>
+                {% elif match_stats.result == 'L' %}
+                    <span class="mt-2 px-3 py-1 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 rounded-full">DERROTA</span>
+                {% else %}
+                    <span class="mt-2 px-3 py-1 text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 rounded-full">EMPATE</span>
+                {% endif %}
+            </div>
+            
+            <!-- Equipo Visitante -->
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                    {% if match_stats.is_home %}Rival{% else %}Tu equipo{% endif %}
+                </p>
+                <p class="text-2xl font-bold {% if not match_stats.is_home %}text-blue-600 dark:text-blue-400{% else %}text-gray-700 dark:text-gray-300{% endif %}">
+                    {{ match.away_team }}
+                </p>
+                <p class="text-4xl font-bold mt-2 {% if not match_stats.is_home and match_stats.result == 'W' %}text-green-600{% elif not match_stats.is_home and match_stats.result == 'L' %}text-red-600{% else %}text-gray-600{% endif %}">
+                    {% if match_stats.is_home %}{{ match_stats.opp_score }}{% else %}{{ match_stats.team_score }}{% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs específicos -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Tries convertidos / sin convertir</p>
+            <p class="text-3xl font-bold text-white">{{ match_stats.team_stats.tries_converted }} / {{ match_stats.team_stats.tries_unconverted }}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Penales exitosos / penales totales</p>
+            <p class="text-3xl font-bold text-white">{{ match_stats.team_stats.penales_goal_success }} / {{ match_stats.team_stats.penales_goal_total }}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Tarjetas amarillas / rojas</p>
+            <p class="text-3xl font-bold text-white">{{ match_stats.team_stats.yellow_cards }} / {{ match_stats.team_stats.red_cards }}</p>
+        </div>
+    </div>
+
+    <!-- Set Pieces -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">Lines</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Total: {{ match_stats.set_pieces.line_total_match }}</p>
+            <div class="h-72">
+                <canvas id="lineChart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">Scrums</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Total: {{ match_stats.set_pieces.scrum_total_match }}</p>
+            <div class="h-72">
+                <canvas id="scrumChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Posesiones -->
+    {% if match_stats.possession.total_general or match_stats.possession.total %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <div class="flex flex-col lg:flex-row lg:items-start lg:gap-8">
+            <div class="w-full lg:flex-[3] lg:basis-3/4 lg:min-w-[65%] min-w-0">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Datos generales</h3>
+                <div class="h-80 lg:h-96">
+                    <canvas id="possessionChart"></canvas>
+                </div>
+            </div>
+            <div class="w-full lg:flex-[1] lg:basis-1/4 lg:max-w-xs mt-6 lg:mt-0 lg:pl-6 lg:border-l lg:border-gray-200 lg:dark:border-gray-700">
+                <h4 class="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">Promedios</h4>
+                <ul class="space-y-2">
+                    {% for avg in match_stats.possession.averages %}
+                    <li class="flex items-center justify-between text-base text-gray-700 dark:text-gray-300">
+                        <span>{{ avg.label }}</span>
+                        <span class="font-semibold">{{ avg.value }}% ({{ avg.num }}/{{ avg.den }})</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pelotas perdidas por zona de fin -->
+    <div class="grid grid-cols-1 gap-6 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                {{ match_stats.team_name }} - Pelotas perdidas por zona (fin)
+            </h3>
+            <div class="h-64">
+                <canvas id="lostZonaChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
+        <p class="text-gray-500 dark:text-gray-400">No hay estadísticas disponibles para este partido.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const matchStats = {{ match_stats_json|safe }};
+    
+    if (!matchStats || !matchStats.team_stats) return;
+    
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    const textColor = isDarkMode ? '#E5E7EB' : '#374151';
+    const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    Chart.defaults.color = textColor;
+    Chart.register(ChartDataLabels);
+    
+    const blueColors = ['#3B82F6', '#60A5FA', '#93C5FD', '#BFDBFE', '#DBEAFE', '#2563EB', '#1D4ED8'];
+
+    // Lines stacked por sigue_con
+    if (matchStats.set_pieces && matchStats.set_pieces.line_breakdown) {
+        const bd = matchStats.set_pieces.line_breakdown;
+        const labels = [...bd.outcomes, 'Recuperados'];
+        const followLabels = bd.labels;
+        const palette = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6366F1', '#14B8A6', '#F97316', '#06B6D4'];
+        const datasets = followLabels.map((lab, idx) => ({
+            label: lab,
+            data: [...bd.matrix.map(row => row[idx]), 0],
+            backgroundColor: palette[idx % palette.length],
+            stack: 'lineStack'
+        }));
+        datasets.push({
+            label: 'Recuperados',
+            data: labels.map((_, i) => i === labels.length - 1 ? matchStats.set_pieces.line_recovered : 0),
+            backgroundColor: '#94A3B8',
+            stack: 'lineStack'
+        });
+        new Chart(document.getElementById('lineChart').getContext('2d'), {
+            type: 'bar',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    datalabels: {
+                        color: textColor,
+                        anchor: 'center',
+                        align: 'center',
+                        formatter: v => (v && v !== 0 ? v : ''),
+                        display: ctx => {
+                            const v = ctx.dataset.data[ctx.dataIndex];
+                            return !!v;
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: gridColor }, stacked: true },
+                    x: { grid: { display: false }, stacked: true }
+                }
+            }
+        });
+    }
+
+    // Scrums stacked por sigue_con
+    if (matchStats.set_pieces && matchStats.set_pieces.scrum_breakdown) {
+        const bd = matchStats.set_pieces.scrum_breakdown;
+        const labels = [...bd.outcomes, 'Recuperados'];
+        const followLabels = bd.labels;
+        const palette = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6366F1', '#14B8A6', '#F97316', '#06B6D4'];
+        const datasets = followLabels.map((lab, idx) => ({
+            label: lab,
+            data: [...bd.matrix.map(row => row[idx]), 0],
+            backgroundColor: palette[idx % palette.length],
+            stack: 'scrumStack'
+        }));
+        datasets.push({
+            label: 'Recuperados',
+            data: labels.map((_, i) => i === labels.length - 1 ? matchStats.set_pieces.scrum_recovered : 0),
+            backgroundColor: '#94A3B8',
+            stack: 'scrumStack'
+        });
+        new Chart(document.getElementById('scrumChart').getContext('2d'), {
+            type: 'bar',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    datalabels: {
+                        color: textColor,
+                        anchor: 'center',
+                        align: 'center',
+                        formatter: v => (v && v !== 0 ? v : ''),
+                        display: ctx => {
+                            const v = ctx.dataset.data[ctx.dataIndex];
+                            return !!v;
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: gridColor }, stacked: true },
+                    x: { grid: { display: false }, stacked: true }
+                }
+            }
+        });
+    }
+
+    // Posesiones por resultado (termina)
+    if (matchStats.possession && matchStats.possession.items && matchStats.possession.items.length > 0) {
+        const labels = matchStats.possession.items.map(item => item.label);
+        const counts = matchStats.possession.items.map(item => item.count);
+        const colors = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6366F1', '#14B8A6', '#F97316'];
+        new Chart(document.getElementById('possessionChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Posesiones',
+                    data: counts,
+                    backgroundColor: colors.slice(0, counts.length)
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: true },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'right',
+                        color: textColor,
+                        clamp: true,
+                        formatter: value => (value && value !== 0 ? value : '')
+                    }
+                },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: gridColor } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    }
+    
+    // Pelotas perdidas por zona (zona_fin)
+    if (matchStats.team_stats.lost_by_zone && matchStats.team_stats.lost_by_zone.length > 0) {
+        new Chart(document.getElementById('lostZonaChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: matchStats.team_stats.lost_by_zone.map(d => d.zona_fin),
+                datasets: [{
+                    label: 'Pelotas perdidas',
+                    data: matchStats.team_stats.lost_by_zone.map(d => d.count),
+                    backgroundColor: '#EF4444'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: gridColor } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+    
+});
+</script>
+{% endblock %}

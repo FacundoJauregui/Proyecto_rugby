@@ -3,16 +3,32 @@
 {% block title %}Reproductor: {{ match.home_team }} vs {{ match.away_team }}{% endblock %}
 
 {% block content %}
+
 <div>
-  <h1 class="text-3xl font-bold mb-2 text-gray-900 dark:text-white">{{ match.home_team }} vs. {{ match.away_team }}</h1>
-  {% if match.tournament %}
-    <div class="mb-4 text-sm text-gray-600 dark:text-gray-300">
-      <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-700 text-black border border-blue-800 dark:bg-blue-700 dark:text-black dark:border-blue-800">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M7 2h10a1 1 0 0 1 1 1v3a4 4 0 1 1-5 3.87V19h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3V9.87A4 4 0 1 1 6 6V3a1 1 0 0 1 1-1Zm1 2v2a2 2 0 1 0 4 0V4H8Zm6 0v2a2 2 0 1 0 4 0V4h-4Z"/></svg>
-        Torneo: {% if match.tournament.country %}{{ match.tournament.country.name }} – {% endif %}{{ match.tournament.name }}{% if match.tournament.season %} ({{ match.tournament.season }}){% endif %}
-      </span>
+  <div class="flex items-start justify-between gap-4 mb-2">
+    <div>
+      <h1 class="text-3xl font-bold mb-2 text-gray-900 dark:text-white">{{ match.home_team }} vs. {{ match.away_team }}</h1>
+      {% if match.tournament %}
+        <div class="text-sm text-gray-600 dark:text-gray-300">
+          <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-700 text-black border border-blue-800 dark:bg-blue-700 dark:text-black dark:border-blue-800">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M7 2h10a1 1 0 0 1 1 1v3a4 4 0 1 1-5 3.87V19h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3V9.87A4 4 0 1 1 6 6V3a1 1 0 0 1 1-1Zm1 2v2a2 2 0 1 0 4 0V4H8Zm6 0v2a2 2 0 1 0 4 0V4h-4Z"/></svg>
+              Torneo: {% if match.tournament.country %}{{ match.tournament.country.name }} - {% endif %}{{ match.tournament.name }}{% if match.tournament.season %} ({{ match.tournament.season }}){% endif %}
+          </span>
+        </div>
+      {% endif %}
     </div>
-  {% endif %}
+
+    <div class="flex flex-col items-end gap-2">
+      {% if show_stats_button %}
+      <a href="{% url 'player:dashboard_match' pk=match.id %}{% if stats_team %}?team={{ stats_team|urlencode }}{% endif %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 rounded-lg shadow-sm dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-12 3h12M9 6h10.5M5.25 6H9m0 12h10.5M5.25 18H9M9 9h12m-12 6h12M4.5 3.75h13.5A2.25 2.25 0 0 1 20.25 6v12a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 18V6A2.25 2.25 0 0 1 4.5 3.75Z" />
+        </svg>
+        Ver estadísticas del partido
+      </a>
+      {% endif %}
+    </div>
+  </div>
 
   <!-- Layout 25%/75% horizontal, panel a la izquierda -->
   <div class="flex flex-col lg:flex-row gap-8 w-full">
@@ -21,6 +37,7 @@
       <!-- Filtros -->
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
         <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Filtros</h2>
+
         <form method="GET" action="" class="space-y-3">
           <select name="equipo" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
             <option value="" {% if not filter_params.equipo %}selected{% endif %}>-- Por Equipo --</option>
@@ -113,7 +130,10 @@
   <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- 50% izquierdo: Lista de Jugadas -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 overflow-x-auto">
-      <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Lista de Jugadas</h2>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Lista de Jugadas</h2>
+        <span class="text-xs font-medium px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">Total: {{ plays_total }}</span>
+      </div>
       <!-- Agrego clases para evitar colapso y habilitar scroll horizontal -->
       <table id="plays-table" class="min-w-full min-w-max whitespace-nowrap text-sm text-left text-gray-500 dark:text-gray-400 display nowrap" style="width:100%">
         <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
@@ -133,7 +153,7 @@
       </table>
     </div>
 
-    <!-- 50% derecho: espacio para futuras tarjetas (estadísticas, notas, etc.) -->
+    <!-- 50% derecho: Selección actual -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 min-h-[200px]">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Selección actual</h2>
@@ -142,7 +162,9 @@
       <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Jugadas que marcaste (se usan para Reproducir Selección y para guardar Preset).</p>
       <ul id="selected-plays-list" class="mt-3 divide-y divide-gray-200 dark:divide-gray-700"></ul>
     </div>
+
   </div>
+
 </div>
 
 {% if messages %}
@@ -295,6 +317,12 @@
       }
 
       const ajaxUrl = `{% url 'player:plays_data' pk=match.pk %}`;
+      let totalPlays = 0;
+
+      const updateLengthLabel = () => {
+        const totalEl = document.getElementById('plays-total-count');
+        if (totalEl) totalEl.textContent = totalPlays;
+      };
 
       const dt = new DataTable('#plays-table', {
         rowId: row => `play-item-${row[IDX.id]}`,
@@ -304,6 +332,9 @@
         select: false,              // desactiva selección de filas si el plugin Select está presente
         lengthChange: true,
         pageLength: 10,
+        language: {
+          lengthMenu: '_MENU_ Jugadas por pagina'
+        },
   // Ordenar por la columna visible "Inicia" (índice visible 3)
   order: [[3, 'asc']],
         info: false,
@@ -327,7 +358,11 @@
 
           fetch(`${ajaxUrl}?${payload.toString()}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
             .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-            .then(json => { callback(json); })
+            .then(json => {
+              totalPlays = json.recordsFiltered ?? json.recordsTotal ?? 0;
+              callback(json);
+              updateLengthLabel();
+            })
             .catch(err => {
               console.error('DataTables AJAX error:', err);
               callback({ draw: data.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
@@ -362,6 +397,7 @@
           const allChecked = allVisible.length && allVisible.every(cb => cb.checked);
           if (dtSelectAll) dtSelectAll.checked = allChecked;
           renderSelectedList();
+          updateLengthLabel();
         }
       });
 

@@ -539,6 +539,38 @@ class MatchPlayerView(LoginRequiredMixin, DetailView):
         match = self.get_object()
         
         plays_list = match.plays.select_related('match').all().order_by('inicio')
+        context['plays_total'] = match.plays.count()
+
+        # Determinar si mostrar acceso a estadísticas y con qué equipo enfocar
+        user = self.request.user
+        profile = getattr(user, 'profile', None)
+        allowed_roles = {'COACH', 'PLAYER'}
+        show_stats_button = False
+        stats_team = None
+
+        if user.is_authenticated and profile and profile.role in allowed_roles:
+            team_names = []
+            if profile.team:
+                name = (profile.team.alias or profile.team.name or '').strip()
+                if name:
+                    team_names.append(name)
+
+            participations = CoachTournamentTeamParticipation.objects.filter(user=user, active=True).select_related('team')
+            for p in participations:
+                name = (p.team.alias or p.team.name or '').strip()
+                if name:
+                    team_names.append(name)
+
+            match_teams = { (match.home_team or '').strip().lower(), (match.away_team or '').strip().lower() }
+            for name in team_names:
+                if name and name.strip().lower() in match_teams:
+                    stats_team = name.strip()
+                    break
+
+            show_stats_button = stats_team is not None
+
+        context['show_stats_button'] = show_stats_button
+        context['stats_team'] = stats_team
 
         filter_params = {}
         evento_filter = self.request.GET.get('evento', '')

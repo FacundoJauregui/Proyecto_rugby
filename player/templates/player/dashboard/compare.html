@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Comparar Partidos - SportFrame{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="max-w-7xl mx-auto">
+    <!-- Header con navegación -->
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <nav class="flex mb-2" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 text-sm">
+                    <li><a href="{% url 'player:dashboard' %}" class="text-gray-500 dark:text-gray-400 hover:text-blue-600">Dashboard</a></li>
+                    <li><span class="mx-1 text-gray-400">/</span></li>
+                    <li class="text-gray-700 dark:text-gray-300">Comparar Partidos</li>
+                </ol>
+            </nav>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Comparador de Partidos</h1>
+            <p class="text-gray-600 dark:text-gray-400">Selecciona partidos para comparar sus estadísticas</p>
+        </div>
+        <a href="{% url 'player:dashboard' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+        </a>
+    </div>
+
+    <!-- Selector de Partidos -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <form method="GET" id="compareForm">
+            <!-- Mantener filtros de temporada -->
+            {% for season in selected_seasons %}
+            <input type="hidden" name="season" value="{{ season }}">
+            {% endfor %}
+            {% if selected_team %}
+            <input type="hidden" name="team" value="{{ selected_team }}">
+            {% endif %}
+            
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Selecciona Partidos a Comparar</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                {% for match in available_matches %}
+                <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                    <input type="checkbox" name="match_id" value="{{ match.id }}" 
+                           class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-600 dark:border-gray-500"
+                           {% if match.id in selected_match_ids %}checked{% endif %}>
+                    <div class="ml-3 flex-1">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">
+                            <span>{{ match.team_name }}</span>
+                            <span class="mx-1">{% if match.is_home %}vs{% else %}@{% endif %}</span>
+                            <span>{{ match.opp_name }}</span>
+                        </p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ match.match_date|default:"Sin fecha" }}
+                            {% if match.tournament %}• {{ match.tournament }}{% endif %}
+                        </p>
+                    </div>
+                </label>
+                {% empty %}
+                <p class="col-span-full text-center text-gray-500 dark:text-gray-400 py-4">
+                    No hay partidos disponibles para comparar
+                </p>
+                {% endfor %}
+            </div>
+            
+            <button type="submit" 
+                    class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-blue-600 dark:hover:bg-blue-700">
+                Comparar Seleccionados
+            </button>
+        </form>
+    </div>
+
+    {% if comparison and comparison.count > 0 %}
+    <!-- Resultados de la Comparación -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Comparación de {{ comparison.count }} Partido{% if comparison.count > 1 %}s{% endif %}
+        </h3>
+        
+        <!-- Tabla Comparativa -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                    <tr>
+                        <th class="px-4 py-3">Métrica</th>
+                        {% for match in comparison.matches %}
+                        <th class="px-4 py-3 text-center">
+                            {{ match.match.home_team }} vs {{ match.match.away_team }}
+                            <br>
+                            <span class="font-normal text-xs">{{ match.match.match_date|default:"" }}</span>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+                        <td class="px-4 py-3 font-medium">Total Jugadas</td>
+                        {% for match in comparison.matches %}
+                        <td class="px-4 py-3 text-center">{{ match.total_plays }}</td>
+                        {% endfor %}
+                    </tr>
+                    <tr class="bg-gray-50 border-b dark:bg-gray-900 dark:border-gray-700">
+                        <td class="px-4 py-3 font-medium">Jugadas Propias</td>
+                        {% for match in comparison.matches %}
+                        <td class="px-4 py-3 text-center text-blue-600 dark:text-blue-400">{{ match.team_stats.plays }}</td>
+                        {% endfor %}
+                    </tr>
+                    <tr class="bg-gray-50 border-b dark:bg-gray-900 dark:border-gray-700">
+                        <td class="px-4 py-3 font-medium">Tries Propios</td>
+                        {% for match in comparison.matches %}
+                        <td class="px-4 py-3 text-center font-bold text-green-600">{{ match.team_stats.tries }}</td>
+                        {% endfor %}
+                    </tr>
+                    <tr class="bg-gray-50 border-b dark:bg-gray-900 dark:border-gray-700">
+                        <td class="px-4 py-3 font-medium">Penales Propios</td>
+                        {% for match in comparison.matches %}
+                        <td class="px-4 py-3 text-center text-yellow-600">{{ match.team_stats.penalties }}</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Gráfico Comparativo -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Comparación Visual</h3>
+        <div class="h-80">
+            <canvas id="comparisonChart"></canvas>
+        </div>
+    </div>
+
+    {% elif selected_match_ids %}
+    <div class="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-4 text-center">
+        <p class="text-yellow-800 dark:text-yellow-200">No se encontraron datos para los partidos seleccionados.</p>
+    </div>
+    {% else %}
+    <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-6 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-500 dark:text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+        </svg>
+        <p class="text-gray-800 dark:text-gray-100 font-medium">Selecciona al menos 2 partidos arriba para ver la comparación</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if comparison and comparison.count > 0 %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const comparison = {{ comparison_json|safe }};
+    
+    if (!comparison || !comparison.matches || comparison.matches.length === 0) return;
+    
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    const textColor = isDarkMode ? '#E5E7EB' : '#374151';
+    const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    Chart.defaults.color = textColor;
+    
+    const labels = comparison.matches.map(m => 
+        `${m.match.home_team.substring(0, 8)} vs ${m.match.away_team.substring(0, 8)}`
+    );
+    
+    new Chart(document.getElementById('comparisonChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Jugadas Propias',
+                    data: comparison.matches.map(m => m.team_stats.plays),
+                    backgroundColor: '#3B82F6'
+                },
+                {
+                    label: 'Tries Propios',
+                    data: comparison.matches.map(m => m.team_stats.tries),
+                    backgroundColor: '#10B981'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, grid: { color: gridColor } },
+                x: { grid: { display: false } }
+            },
+            plugins: {
+                legend: { position: 'top' }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

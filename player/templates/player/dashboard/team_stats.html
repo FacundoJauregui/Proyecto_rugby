@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Estadísticas del Equipo - SportFrame{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="max-w-7xl mx-auto">
+    <!-- Header con navegación -->
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <nav class="flex mb-2" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 text-sm">
+                    <li><a href="{% url 'player:dashboard' %}" class="text-gray-500 dark:text-gray-400 hover:text-blue-600">Dashboard</a></li>
+                    <li><span class="mx-1 text-gray-400">/</span></li>
+                    <li class="text-gray-700 dark:text-gray-300">Estadísticas del Equipo</li>
+                </ol>
+            </nav>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Estadísticas del Equipo</h1>
+        </div>
+        <a href="{% url 'player:dashboard' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+        </a>
+    </div>
+
+    <!-- Filtros -->
+    <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <form method="GET" class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label for="season" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Temporadas</label>
+                <select id="season" name="season" multiple
+                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white h-24">
+                    {% for season in available_seasons %}
+                    <option value="{{ season }}" {% if season in selected_seasons %}selected{% endif %}>{{ season }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="flex-1 min-w-[200px]">
+                <label for="tournament" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Torneos</label>
+                <select id="tournament" name="tournament" multiple
+                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white h-24">
+                    {% for t in available_tournaments %}
+                    <option value="{{ t.name }}" {% if t.name in selected_tournaments %}selected{% endif %}>
+                        {% if t.short_name %}{{ t.short_name }}{% else %}{{ t.name }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {% if user_teams|length > 1 %}
+            <div class="flex-1 min-w-[200px]">
+                <label for="team" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Equipo</label>
+                <select id="team" name="team"
+                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">Todos mis equipos</option>
+                    {% for team in user_teams %}
+                    <option value="{{ team }}" {% if team == selected_team %}selected{% endif %}>{{ team }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <div>
+                <button type="submit" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">
+                    Actualizar
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Resumen de Performance -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Partidos</p>
+            <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ summary.total_matches }}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Victorias</p>
+            <p class="text-3xl font-bold text-green-600">{{ summary.wins }}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Empates</p>
+            <p class="text-3xl font-bold text-gray-600 dark:text-gray-400">{{ summary.draws }}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Derrotas</p>
+            <p class="text-3xl font-bold text-red-600">{{ summary.losses }}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">% Victorias</p>
+            <p class="text-3xl font-bold text-purple-600">{{ summary.win_rate }}%</p>
+        </div>
+    </div>
+
+    <!-- Gráficos principales -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Tendencia de Resultados -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Evolución de Tries (últimos 20 partidos)</h3>
+            <div class="h-72">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Distribución Resultados -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Distribución de Resultados</h3>
+            <div class="h-72">
+                <canvas id="resultsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Análisis de Jugadas -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Por Tipo de Jugada -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tipos de Jugada Más Frecuentes</h3>
+            <div class="h-72">
+                <canvas id="jugadaChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Por Evento -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Eventos Más Frecuentes</h3>
+            <div class="h-72">
+                <canvas id="eventoChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Análisis de Zonas -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Zonas de Inicio -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Zonas de Inicio de Jugadas</h3>
+            <div class="h-72">
+                <canvas id="zonaInicioChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Zonas de Fin -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Zonas de Finalización</h3>
+            <div class="h-72">
+                <canvas id="zonaFinChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultados por Tipo -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Resultados de Jugadas</h3>
+        <div class="h-80">
+            <canvas id="resultadoChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const trendData = {{ trend_data_json|safe }};
+    const playsData = {{ plays_distribution_json|safe }};
+    const summary = {
+        wins: {{ summary.wins }},
+        losses: {{ summary.losses }},
+        draws: {{ summary.draws }}
+    };
+    
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    const textColor = isDarkMode ? '#E5E7EB' : '#374151';
+    const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    Chart.defaults.color = textColor;
+    
+    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'];
+    
+    // Gráfico de Tendencia
+    if (trendData.length > 0) {
+        new Chart(document.getElementById('trendChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: trendData.map((d, i) => `#${i + 1}`),
+                datasets: [
+                    {
+                        label: 'Tries Propios',
+                        data: trendData.map(d => d.team_tries),
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'Tries Rival',
+                        data: trendData.map(d => d.opp_tries),
+                        borderColor: '#EF4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'Victorias Acumuladas',
+                        data: trendData.map(d => d.cumulative_wins),
+                        borderColor: '#8B5CF6',
+                        borderDash: [5, 5],
+                        tension: 0,
+                        fill: false,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, grid: { color: gridColor } },
+                    y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } },
+                    x: { grid: { color: gridColor } }
+                }
+            }
+        });
+    }
+    
+    // Gráfico de Resultados (Pie)
+    new Chart(document.getElementById('resultsChart').getContext('2d'), {
+        type: 'pie',
+        data: {
+            labels: ['Victorias', 'Derrotas', 'Empates'],
+            datasets: [{
+                data: [summary.wins, summary.losses, summary.draws],
+                backgroundColor: ['#10B981', '#EF4444', '#6B7280'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+    
+    // Gráfico por Tipo de Jugada (Bar horizontal)
+    if (playsData.by_jugada && playsData.by_jugada.length > 0) {
+        new Chart(document.getElementById('jugadaChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: playsData.by_jugada.map(d => d.jugada),
+                datasets: [{
+                    label: 'Cantidad',
+                    data: playsData.by_jugada.map(d => d.count),
+                    backgroundColor: colors
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: gridColor } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    }
+    
+    // Gráfico por Evento (Bar horizontal)
+    if (playsData.by_evento && playsData.by_evento.length > 0) {
+        new Chart(document.getElementById('eventoChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: playsData.by_evento.map(d => d.evento),
+                datasets: [{
+                    label: 'Cantidad',
+                    data: playsData.by_evento.map(d => d.count),
+                    backgroundColor: colors.slice().reverse()
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: gridColor } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    }
+    
+    // Zona Inicio
+    if (playsData.by_zona_inicio && playsData.by_zona_inicio.length > 0) {
+        new Chart(document.getElementById('zonaInicioChart').getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: playsData.by_zona_inicio.map(d => d.zona_inicio),
+                datasets: [{
+                    data: playsData.by_zona_inicio.map(d => d.count),
+                    backgroundColor: colors
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } } }
+            }
+        });
+    }
+    
+    // Zona Fin
+    if (playsData.by_zona_fin && playsData.by_zona_fin.length > 0) {
+        new Chart(document.getElementById('zonaFinChart').getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: playsData.by_zona_fin.map(d => d.zona_fin),
+                datasets: [{
+                    data: playsData.by_zona_fin.map(d => d.count),
+                    backgroundColor: colors.slice().reverse()
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } } }
+            }
+        });
+    }
+    
+    // Resultados de Jugadas (Bar)
+    if (playsData.by_resultado && playsData.by_resultado.length > 0) {
+        new Chart(document.getElementById('resultadoChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: playsData.by_resultado.map(d => d.resultado),
+                datasets: [{
+                    label: 'Cantidad',
+                    data: playsData.by_resultado.map(d => d.count),
+                    backgroundColor: '#3B82F6'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: gridColor } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

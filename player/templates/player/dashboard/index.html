@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard - SportFrame{% endblock %}
+
+{% block content %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            {% if not is_admin and selected_team %}
+                Dashboard de {{ selected_team }}
+            {% else %}
+                Dashboard de Estadísticas
+            {% endif %}
+        </h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            {% if is_admin and selected_team %}
+                Viendo estadísticas de {{ selected_team }}
+            {% elif is_admin %}
+                Selecciona un equipo para ver sus estadísticas
+            {% endif %}
+            {% if selected_seasons %}
+                {% if is_admin and selected_team %}-{% endif %} Temporadas: {{ selected_seasons|join:", " }}
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Filtros (solo mostrar si es admin O hay temporadas para filtrar) -->
+    {% if is_admin or available_seasons or available_tournaments %}
+    <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <form method="GET" class="flex flex-wrap gap-4 items-end">
+            
+            {% if is_admin %}
+            <!-- Selector de Equipo (solo para admins) -->
+            <div class="flex-1 min-w-[200px]">
+                <label for="team" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                    Equipo <span class="text-red-500">*</span>
+                </label>
+                <select id="team" name="team" required
+                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">-- Selecciona un equipo --</option>
+                    {% for team in user_teams %}
+                    <option value="{{ team }}" {% if team == selected_team %}selected{% endif %}>{{ team }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <!-- Selector de Temporada -->
+            {% if not needs_team_selection and not no_teams_assigned %}
+            <div class="flex-1 min-w-[250px]">
+                <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Temporada</label>
+                <div class="flex flex-wrap gap-2">
+                    {% for season in available_seasons %}
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" name="season" value="{{ season }}" 
+                               {% if season in selected_seasons %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                        <span class="ml-1.5 text-sm text-gray-900 dark:text-gray-300">{{ season }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="flex-1 min-w-[250px]">
+                <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Torneo</label>
+                <div class="flex flex-wrap gap-2">
+                    {% for t in available_tournaments %}
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" name="tournament" value="{{ t.name }}"
+                               {% if t.name in selected_tournaments %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                        <span class="ml-1.5 text-sm text-gray-900 dark:text-gray-300">
+                            {% if t.short_name %}{{ t.short_name }}{% else %}{{ t.name }}{% endif %}
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div>
+                <button type="submit" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">
+                    Filtrar
+                </button>
+            </div>
+            {% elif is_admin and needs_team_selection %}
+            <div>
+                <button type="submit" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">
+                    Ver Dashboard
+                </button>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+    {% endif %}
+
+    {% if needs_team_selection %}
+    <!-- Mensaje para admins que necesitan seleccionar equipo -->
+    <div class="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-8 text-center">
+        <svg class="w-16 h-16 mx-auto text-blue-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+        </svg>
+        <h3 class="text-xl font-semibold text-blue-800 dark:text-blue-200 mb-2">Selecciona un Equipo</h3>
+        <p class="text-blue-600 dark:text-blue-300">Como administrador, puedes ver las estadísticas de cualquier equipo del sistema.</p>
+        <p class="text-blue-600 dark:text-blue-300 mt-2">Usa el selector de arriba para elegir el equipo que quieres analizar.</p>
+    </div>
+    
+    {% elif no_teams_assigned %}
+    <!-- Mensaje para entrenadores sin equipo asignado -->
+    <div class="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-8 text-center">
+        <svg class="w-16 h-16 mx-auto text-yellow-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+        <h3 class="text-xl font-semibold text-yellow-800 dark:text-yellow-200 mb-2">Sin Equipo Asignado</h3>
+        <p class="text-yellow-600 dark:text-yellow-300">No tienes ningún equipo asignado a tu cuenta.</p>
+        <p class="text-yellow-600 dark:text-yellow-300 mt-2">Contacta al administrador para que te asigne un equipo.</p>
+    </div>
+    {% else %}
+
+    <!-- KPIs Principales -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <!-- Total Partidos -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+                    <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Partidos</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ summary.total_matches }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Victorias -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 p-3 bg-green-100 dark:bg-green-900 rounded-full">
+                    <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Victorias</p>
+                    <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ summary.wins }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Derrotas -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 p-3 bg-red-100 dark:bg-red-900 rounded-full">
+                    <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Derrotas</p>
+                    <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ summary.losses }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Win Rate -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
+                    <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">% Victorias</p>
+                    <p class="text-2xl font-bold text-purple-600 dark:text-purple-400">{{ summary.win_rate }}%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Segunda fila de KPIs - Puntos -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        <!-- Puntos a favor -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="text-center">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Puntos a Favor</p>
+                <p class="text-3xl font-bold text-green-600 dark:text-green-400">{{ summary.points_for }}</p>
+            </div>
+        </div>
+
+        <!-- Puntos en contra -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="text-center">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Puntos en Contra</p>
+                <p class="text-3xl font-bold text-red-600 dark:text-red-400">{{ summary.points_against }}</p>
+            </div>
+        </div>
+
+        <!-- Promedio de puntos por partido -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="text-center">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Prom. Puntos / Partido</p>
+                <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">{{ summary.avg_points_per_match }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tercera fila de KPIs - Tries -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        <!-- Tries a favor -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="text-center">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Tries a Favor</p>
+                <p class="text-3xl font-bold text-green-600 dark:text-green-400">{{ summary.tries_for }}</p>
+            </div>
+        </div>
+
+        <!-- Tries en contra -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="text-center">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Tries en Contra</p>
+                <p class="text-3xl font-bold text-red-600 dark:text-red-400">{{ summary.tries_against }}</p>
+            </div>
+        </div>
+
+        <!-- Promedio de tries por partido -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="text-center">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Prom. Tries / Partido</p>
+                <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">{{ summary.avg_tries_per_match }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Gráfico de Tendencia -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tendencia de Resultados</h3>
+            <div class="h-64">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfico de Lines ganados vs perdidos (reemplaza distribución por tipo de jugada) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Lines: Ganados vs Perdidos</h3>
+            <div class="h-64">
+                <canvas id="lineoutsChart"></canvas>
+            </div>
+        </div>
+    </div>
+        <!-- Gráfico de Penales Concedidos por Partido -->
+        <div class="grid grid-cols-1 gap-6 mb-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Penales Concedidos por Partido</h3>
+                <div class="h-64">
+                    <canvas id="penaltiesTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    <!-- Últimos Partidos + Accesos Rápidos -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Últimos Partidos -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Últimos Partidos</h3>
+                <a href="{% url 'player:match_list' %}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">Ver todos →</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                        <tr>
+                            <th class="px-3 py-2">Fecha</th>
+                            <th class="px-3 py-2">Rival</th>
+                            <th class="px-3 py-2">Resultado</th>
+                            <th class="px-3 py-2">Torneo</th>
+                            <th class="px-3 py-2">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for match in recent_matches %}
+                        <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                            <td class="px-3 py-2">{{ match.match_date|default:"-" }}</td>
+                            <td class="px-3 py-2 font-medium">
+                                {% if match.is_home %}
+                                    vs {{ match.away_team }}
+                                {% else %}
+                                    @ {{ match.home_team }}
+                                {% endif %}
+                            </td>
+                            <td class="px-3 py-2">
+                                <span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full
+                                    {% if match.result == 'W' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300
+                                    {% elif match.result == 'L' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300
+                                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                    {{ match.score_str }}
+                                </span>
+                            </td>
+                            <td class="px-3 py-2 text-xs">{{ match.tournament|default:"-" }}</td>
+                            <td class="px-3 py-2">
+                                          <a href="{% url 'player:dashboard_match' pk=match.id %}{% if selected_team %}?team={{ selected_team|urlencode }}{% endif %}"
+                                              class="text-blue-600 dark:text-blue-400 hover:underline text-xs">Stats</a>
+                                          |
+                                          <a href="{% url 'player:play_match' pk=match.id %}{% if selected_team %}?team={{ selected_team|urlencode }}{% endif %}"
+                                              class="text-blue-600 dark:text-blue-400 hover:underline text-xs">Ver</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
+                                No hay partidos registrados
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Accesos Rápidos -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Accesos Rápidos</h3>
+            <div class="space-y-3">
+                <a href="{% url 'player:match_list' %}"
+                   class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                    <svg class="w-5 h-5 text-green-600 dark:text-green-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                    <span class="text-gray-900 dark:text-white font-medium">Ver Partidos</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const trendData = {{ trend_data_json|safe }};
+    const playsData = {{ plays_distribution_json|safe }};
+    const lineData = playsData.lineouts || {};
+    const scrumData = playsData.scrums || {};
+    
+    // Chart.js dark mode colors
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    const textColor = isDarkMode ? '#E5E7EB' : '#374151';
+    const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    
+    Chart.defaults.color = textColor;
+    
+    // Gráfico de Tendencia
+    if (trendData.length > 0) {
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: trendData.map(d => d.opponent ? `vs ${d.opponent.substring(0, 10)}` : `#${d.index}`),
+                datasets: [
+                    {
+                        label: 'Puntos Propios',
+                        data: trendData.map(d => d.team_score),
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'Puntos Rival',
+                        data: trendData.map(d => d.opp_score),
+                        borderColor: '#EF4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        tension: 0.3,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: gridColor }
+                    },
+                    x: {
+                        grid: { color: gridColor }
+                    }
+                }
+            }
+        });
+    }
+        // Gráfico de Penales Concedidos por Partido (línea doble)
+        if (trendData.length > 0) {
+            const penCtx = document.getElementById('penaltiesTrendChart').getContext('2d');
+            new Chart(penCtx, {
+                type: 'line',
+                data: {
+                    labels: trendData.map(d => d.opponent ? `vs ${d.opponent.substring(0, 10)}` : `#${d.index}`),
+                    datasets: [
+                        {
+                            label: 'Penales Concedidos',
+                            data: trendData.map(d => d.team_penalties_conceded || 0),
+                            borderColor: '#2563EB',
+                            backgroundColor: 'rgba(37, 99, 235, 0.2)',
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Penales Rivales',
+                            data: trendData.map(d => d.opp_penalties_conceded || 0),
+                            borderColor: '#F59E0B',
+                            backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                            tension: 0.3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: gridColor }
+                        },
+                        x: {
+                            grid: { color: gridColor }
+                        }
+                    }
+                }
+            });
+        }
+    
+    // Gráfico de Lines / Scrums ganados vs perdidos
+    const lineScrumTotal = (lineData.won || 0) + (lineData.lost || 0) + (scrumData.won || 0) + (scrumData.lost || 0);
+    if (lineScrumTotal > 0) {
+        const lineCtx = document.getElementById('lineoutsChart').getContext('2d');
+        new Chart(lineCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Lines Ganados', 'Lines Perdidos', 'Scrums Ganados', 'Scrums Perdidos'],
+                datasets: [{
+                    data: [lineData.won || 0, lineData.lost || 0, scrumData.won || 0, scrumData.lost || 0],
+                    backgroundColor: ['#10B981', '#EF4444', '#06B6D4', '#F59E0B'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { boxWidth: 12, padding: 8, font: { size: 11 } }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

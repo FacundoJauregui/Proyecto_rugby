@@ -15,6 +15,12 @@ from .views import (
     MatchSelectionPresetDetailView,
     MatchSelectionPresetUploadCSVView,
 )
+from .views_dashboard import (
+    DashboardIndexView,
+    TeamStatsView,
+    MatchStatsView,
+    DashboardAPIView,
+)
 app_name = 'player'
 
 urlpatterns = [
@@ -51,4 +57,12 @@ urlpatterns = [
     path('matches/<int:pk>/presets/', MatchSelectionPresetListCreateView.as_view(), name='match_presets'),
     path('matches/<int:pk>/presets/<int:preset_id>/', MatchSelectionPresetDetailView.as_view(), name='match_preset_detail'),
     path('matches/<int:pk>/presets/upload-csv/', MatchSelectionPresetUploadCSVView.as_view(), name='match_preset_upload_csv'),
+
+    # ===== DASHBOARD Y ESTADÍSTICAS =====
+    path('dashboard/', DashboardIndexView.as_view(), name='dashboard'),
+    path('dashboard/team/', TeamStatsView.as_view(), name='dashboard_team'),
+    path('dashboard/match/<int:pk>/', MatchStatsView.as_view(), name='dashboard_match'),
+    
+    # API endpoints para datos dinámicos del dashboard
+    path('dashboard/api/<str:action>/', DashboardAPIView.as_view(), name='dashboard_api'),
 ]
