@@ -129,6 +129,7 @@ class DashboardIndexView(DashboardAccessMixin, TemplateView):
         context['plays_distribution'] = stats_service.get_plays_distribution()
         context['trend_data'] = stats_service.get_trend_data(last_n_matches=10)
         context['zone_data'] = stats_service.get_zone_heatmap_data()
+        context['season_aggregates'] = stats_service.get_season_aggregates()
         
         # Datos para filtros
         context['available_seasons'] = available_seasons
@@ -172,6 +173,7 @@ class TeamStatsView(DashboardAccessMixin, TemplateView):
         context['plays_distribution'] = stats_service.get_plays_distribution()
         context['trend_data'] = stats_service.get_trend_data(last_n_matches=20)
         context['zone_data'] = stats_service.get_zone_heatmap_data()
+        context['season_aggregates'] = stats_service.get_season_aggregates()
         
         context['available_seasons'] = stats_service.get_available_seasons()
         context['available_tournaments'] = stats_service.get_available_tournaments()

@@ -7,6 +7,8 @@ de partidos y jugadas para los dashboards de entrenadores.
 import logging
 
 from django.db.models import Count, Q, F, Avg, Sum, Case, When, IntegerField, CharField, Value
+from django.core.cache import cache
+import hashlib
 from django.db.models.functions import Coalesce, Upper
 from collections import defaultdict
 from typing import Optional, List, Dict, Any
@@ -15,6 +17,11 @@ from datetime import date, timedelta
 from player.models import Match, Play, Team, CoachTournamentTeamParticipation, Tournament, Profile
 
 logger = logging.getLogger(__name__)
+
+# Cachés: TTL en segundos
+STATS_CACHE_TTL = 300
+MATCH_CACHE_TTL = 900
+SEASON_CACHE_TTL = 3600
 
 
 class StatsService:
@@ -35,6 +42,43 @@ class StatsService:
         self.tournament_ids = tournaments or []
         self._team_names = set()
         self._init_team_context()
+
+    # -------------------------
+    # Helpers de cache
+    # -------------------------
+    def _make_cache_key(self, slug: str, extra: Optional[Dict[str, Any]] = None) -> str:
+        """Arma una clave estable para cachear resultados de stats."""
+        parts = [slug]
+        user_id = getattr(self.user, 'id', None)
+        parts.append(f"user:{user_id or 'anon'}")
+        if self._team_names:
+            parts.append("teams:" + ",".join(sorted(self._team_names)))
+        if self.seasons:
+            parts.append("seasons:" + ",".join(sorted(self.seasons)))
+        if self.tournament_ids:
+            parts.append("tournaments:" + ",".join(sorted(self.tournament_ids)))
+        if self.team_name:
+            parts.append(f"team_name:{self.team_name}")
+        if extra:
+            for k in sorted(extra.keys()):
+                v = extra[k]
+                if isinstance(v, (list, tuple)):
+                    v = ",".join(str(x) for x in v)
+                parts.append(f"{k}:{v}")
+        raw_key = "|".join(parts)
+        return "stats:" + hashlib.sha1(raw_key.encode('utf-8')).hexdigest()
+
+    def _cache_get(self, key: str):
+        try:
+            return cache.get(key)
+        except Exception:
+            return None
+
+    def _cache_set(self, key: str, value: Any, ttl: int):
+        try:
+            cache.set(key, value, ttl)
+        except Exception:
+            pass
 
     def _init_team_context(self):
         """Determina los equipos del usuario según su rol."""
@@ -219,6 +263,55 @@ class StatsService:
             })
         return result
 
+    def get_season_aggregates(self) -> Dict[str, Any]:
+        """Agregados por temporada (precalculados y cacheados)."""
+        cache_key = self._make_cache_key('season_aggregates')
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        matches = list(self._get_base_matches_queryset(include_tournament_filter=False).select_related('tournament'))
+        aggregates = {}
+
+        for match in matches:
+            season = match.tournament.season if match.tournament else 'N/A'
+            if season not in aggregates:
+                aggregates[season] = {
+                    'season': season,
+                    'matches': 0,
+                    'wins': 0,
+                    'losses': 0,
+                    'draws': 0,
+                    'points_for': 0,
+                    'points_against': 0,
+                    'tries_for': 0,
+                    'tries_against': 0,
+                }
+
+            agg = aggregates[season]
+            agg['matches'] += 1
+
+            result_data = self._get_match_result(match.id, match.home_team, match.away_team)
+            if result_data['result'] == 'W':
+                agg['wins'] += 1
+            elif result_data['result'] == 'L':
+                agg['losses'] += 1
+            else:
+                agg['draws'] += 1
+
+            if result_data['has_score']:
+                agg['points_for'] += result_data['team_score']
+                agg['points_against'] += result_data['opp_score']
+
+            team_name = match.home_team if result_data['is_home'] else match.away_team
+            opp_name = match.away_team if result_data['is_home'] else match.home_team
+            agg['tries_for'] += self._count_tries(match.id, team_name)
+            agg['tries_against'] += self._count_tries(match.id, opp_name)
+
+        aggregates_list = list(aggregates.values())
+        self._cache_set(cache_key, aggregates_list, SEASON_CACHE_TTL)
+        return aggregates_list
+
     def _count_tries(self, match_id: int, team_name: str) -> int:
         """Cuenta tries de un equipo en un partido usando solo el campo jugada."""
         if not team_name:
@@ -251,6 +344,11 @@ class StatsService:
             Dict con total_matches, wins, losses, draws, points_for, points_against, tries, etc.
         """
         matches = self._get_base_matches_queryset()
+        cache_key = self._make_cache_key('summary')
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         match_list = list(matches.values('id', 'home_team', 'away_team', 'match_date'))
         
         total = len(match_list)
@@ -301,7 +399,7 @@ class StatsService:
         avg_points_per_match = round(points_for / total, 1) if total > 0 else 0
         avg_tries_per_match = round(tries_for / total, 1) if total > 0 else 0
         
-        return {
+        data = {
             'total_matches': total,
             'wins': wins,
             'losses': losses,
@@ -316,9 +414,16 @@ class StatsService:
             'avg_points_per_match': avg_points_per_match,
             'avg_tries_per_match': avg_tries_per_match,
         }
+        self._cache_set(cache_key, data, STATS_CACHE_TTL)
+        return data
 
     def get_recent_matches(self, limit: int = 5) -> List[Dict[str, Any]]:
         """Obtiene los últimos N partidos con sus resultados."""
+        cache_key = self._make_cache_key('recent_matches', {'limit': limit})
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         matches = self._get_base_matches_queryset().order_by('-match_date', '-created_at')[:limit]
         
         result = []
@@ -358,6 +463,7 @@ class StatsService:
                 'plays_count': plays_count,
             })
         
+        self._cache_set(cache_key, result, STATS_CACHE_TTL)
         return result
 
     def get_plays_distribution(self) -> Dict[str, Any]:
@@ -367,6 +473,11 @@ class StatsService:
         Returns:
             Dict con conteos por tipo de jugada, evento, etc.
         """
+        cache_key = self._make_cache_key('plays_distribution')
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         plays = self._get_base_plays_queryset()
 
         # Filtro de equipo analizado (para métricas específicas)
@@ -417,7 +528,7 @@ class StatsService:
         scrums_won = plays_for_team.filter(scrum_jugada_filter).filter(scrum_won_result_filter).count()
         scrums_lost = plays_for_team.filter(scrum_jugada_filter).filter(scrum_lost_result_filter).count()
         
-        return {
+        data = {
             'by_jugada': list(by_jugada),
             'by_evento': list(by_evento),
             'by_resultado': list(by_resultado),
@@ -435,6 +546,8 @@ class StatsService:
                 'total': scrums_won + scrums_lost,
             },
         }
+        self._cache_set(cache_key, data, STATS_CACHE_TTL)
+        return data
 
     def get_zone_heatmap_data(self) -> Dict[str, Any]:
         """
@@ -443,6 +556,11 @@ class StatsService:
         Returns:
             Dict con matrices de frecuencias para zonas inicio y fin.
         """
+        cache_key = self._make_cache_key('zone_heatmap')
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         plays = self._get_base_plays_queryset()
         
         # Zonas típicas del rugby (22m, mitad, etc.)
@@ -472,11 +590,13 @@ class StatsService:
             if zi and zf:
                 transitions[(zi, zf)] += 1
         
-        return {
+        data = {
             'zone_starts': dict(zone_starts),
             'zone_ends': dict(zone_ends),
             'transitions': {f"{k[0]}->{k[1]}": v for k, v in transitions.items()},
         }
+        self._cache_set(cache_key, data, STATS_CACHE_TTL)
+        return data
 
     def get_trend_data(self, last_n_matches: int = 10) -> List[Dict[str, Any]]:
         """
@@ -488,6 +608,11 @@ class StatsService:
         Returns:
             Lista de dicts con fecha, puntajes, resultado por partido
         """
+        cache_key = self._make_cache_key('trend', {'n': last_n_matches})
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         matches = self._get_base_matches_queryset().order_by('match_date', 'created_at')
         
         # Tomar los últimos N
@@ -535,6 +660,7 @@ class StatsService:
                 'cumulative_wins': cumulative_wins,
             })
         
+        self._cache_set(cache_key, result, STATS_CACHE_TTL)
         return result
 
     def get_match_detailed_stats(self, match_id: int) -> Dict[str, Any]:
@@ -547,6 +673,11 @@ class StatsService:
         Returns:
             Dict completo con todas las métricas del partido
         """
+        cache_key = self._make_cache_key('match_stats', {'match_id': match_id})
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             match = Match.objects.select_related('tournament').get(id=match_id)
         except Match.DoesNotExist:
@@ -847,7 +978,7 @@ class StatsService:
             }
         ]
         
-        return {
+        data = {
             'match': {
                 'id': match.id,
                 'home_team': match.home_team,
@@ -896,6 +1027,8 @@ class StatsService:
                 'scrum_breakdown': scrum_breakdown,
             }
         }
+        self._cache_set(cache_key, data, MATCH_CACHE_TTL)
+        return data
 
     def compare_matches(self, match_ids: List[int]) -> Dict[str, Any]:
         """
@@ -907,14 +1040,19 @@ class StatsService:
         Returns:
             Dict con estadísticas comparativas
         """
+        key = self._make_cache_key('compare', {'match_ids': ','.join(str(m) for m in sorted(match_ids))})
+        cached = self._cache_get(key)
+        if cached is not None:
+            return cached
+
         comparison = []
-        
         for mid in match_ids:
             stats = self.get_match_detailed_stats(mid)
             if stats:
                 comparison.append(stats)
-        
-        return {
+        data = {
             'matches': comparison,
             'count': len(comparison),
         }
+        self._cache_set(key, data, MATCH_CACHE_TTL)
+        return data
