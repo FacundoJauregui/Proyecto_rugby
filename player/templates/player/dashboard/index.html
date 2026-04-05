@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Dashboard - SportFrame{% endblock %}
+{% block title %}Dashboard - LA DINASTIA{% endblock %}
 
 {% block content %}
 <!-- Chart.js CDN -->
@@ -288,29 +288,29 @@
                     <tbody>
                         {% for match in recent_matches %}
                         <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                            <td class="px-3 py-2">{{ match.match_date|default:"-" }}</td>
-                            <td class="px-3 py-2 font-medium">
+                            <td class="px-3 py-2 text-base">{{ match.match_date|default:"-" }}</td>
+                            <td class="px-3 py-2 text-base font-medium">
                                 {% if match.is_home %}
                                     vs {{ match.away_team }}
                                 {% else %}
                                     @ {{ match.home_team }}
                                 {% endif %}
                             </td>
-                            <td class="px-3 py-2">
-                                <span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full
+                            <td class="px-3 py-2 text-base">
+                                <span class="inline-flex items-center px-2 py-1 text-sm font-medium rounded-full
                                     {% if match.result == 'W' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300
                                     {% elif match.result == 'L' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300
                                     {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                                     {{ match.score_str }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2 text-xs">{{ match.tournament|default:"-" }}</td>
-                            <td class="px-3 py-2">
+                            <td class="px-3 py-2 text-base">{{ match.tournament|default:"-" }}</td>
+                            <td class="px-3 py-2 text-base">
                                           <a href="{% url 'player:dashboard_match' pk=match.id %}{% if selected_team %}?team={{ selected_team|urlencode }}{% endif %}"
-                                              class="text-blue-600 dark:text-blue-400 hover:underline text-xs">Stats</a>
+                                              class="text-blue-600 dark:text-blue-400 hover:underline text-base">Stats</a>
                                           |
                                           <a href="{% url 'player:play_match' pk=match.id %}{% if selected_team %}?team={{ selected_team|urlencode }}{% endif %}"
-                                              class="text-blue-600 dark:text-blue-400 hover:underline text-xs">Ver</a>
+                                              class="text-blue-600 dark:text-blue-400 hover:underline text-base">Ver</a>
                             </td>
                         </tr>
                         {% empty %}

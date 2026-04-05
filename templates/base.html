@@ -82,10 +82,24 @@
                             <span class="flex-1 ms-3 whitespace-nowrap">Cargar Estadisticas</span>
                         </a>
                     </li>
+                    {% if user.is_superuser %}
+                    <li>
+                        <a href='{% url "player:admin_user_add" %}' class='flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group'>
+                            <svg class='w-6 h-6 text-[#D9D9D9] group-hover:text-gray-900 dark:group-hover:text-white' fill='none' stroke='currentColor' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                                <path d='M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'></path>
+                                <circle cx='8.5' cy='7' r='4'></circle>
+                                <line x1='20' y1='8' x2='20' y2='14'></line>
+                                <line x1='23' y1='11' x2='17' y2='11'></line>
+                            </svg>
+                            <span class='flex-1 ms-3 whitespace-nowrap'>Agregar Usuario</span>
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
                 {% else %}
-                <li>
-                    <button type="button" class="flex items-center w-full p-2 text-base text-gray-900 transition duration-75 rounded-lg group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700" aria-controls="dropdown-matches" data-collapse-toggle="dropdown-matches">
+                <ul class="space-y-2 font-medium">
+                    <li>
+                        <button type="button" class="flex items-center w-full p-2 text-base text-gray-900 transition duration-75 rounded-lg group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700" aria-controls="dropdown-matches" data-collapse-toggle="dropdown-matches">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M19 4H5C4.44772 4 4 4.44772 4 5V19C4 19.5523 4.44772 20 5 20H19C19.5523 20 20 19.5523 20 19V5C20 4.44772 19.5523 4 19 4ZM19 4L15 8M20 8H4M5 8L9 4M10 8L14 4M10 11V17L14 14L10 11Z" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
@@ -94,7 +108,7 @@
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
                         </svg>
                     </button>
-                    <ul id="dropdown-matches" class="hidden py-2 space-y-2">
+                        <ul id="dropdown-matches" class="hidden py-2 space-y-2">
                         <li>
                             <a href="{% url 'player:match_list' %}?division=primera" class="flex items-center w-full p-2 text-gray-900 transition duration-75 rounded-lg pl-11 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">Partidos Primera</a>
                         </li>
@@ -105,13 +119,40 @@
                             <a href="{% url 'player:match_list' %}?division=pre-reserva" class="flex items-center w-full p-2 text-gray-900 transition duration-75 rounded-lg pl-11 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">Partidos Pre-Reserva</a>
                         </li>
                     </ul>
-                    <a href="{% url 'player:dashboard' %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                    </li>
+                    <li>
+                        <a href="{% url 'player:dashboard' %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M3 15V19M9 13V19M15 15V19M21 13V19M3 11L9 6L15 11L20.5 5.5" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         <span class="flex-1 ms-3 whitespace-nowrap">Dashboard</span>
                     </a>
-                </li>
+                    </li>
+{% if user.profile.role == 'COACH' %}
+                    <li>
+                        <a href='{% url "player:coach_player_add" %}' class='flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group'>
+                            <svg class='w-6 h-6 text-[#D9D9D9] group-hover:text-gray-900 dark:group-hover:text-white' fill='none' stroke='currentColor' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                                <path d='M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'></path>
+                                <circle cx='8.5' cy='7' r='4'></circle>
+                                <line x1='20' y1='8' x2='20' y2='14'></line>
+                                <line x1='23' y1='11' x2='17' y2='11'></line>
+                            </svg>
+                            <span class='flex-1 ms-3 whitespace-nowrap'>Agregar Jugador</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href='#' class='flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group'>
+                            <svg class='w-6 h-6 text-[#D9D9D9] group-hover:text-gray-900 dark:group-hover:text-white' fill='none' stroke='currentColor' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                                <path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'></path>
+                                <circle cx='9' cy='7' r='4'></circle>
+                                <path d='M23 21v-2a4 4 0 0 0-3-3.87'></path>
+                                <path d='M16 3.13a4 4 0 0 1 0 7.75'></path>
+                            </svg>
+                            <span class='flex-1 ms-3 whitespace-nowrap'>Jugadores</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
                 {% endif %}
             {% else %}
             <ul class="space-y-2 font-medium">

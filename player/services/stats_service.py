@@ -43,6 +43,31 @@ class StatsService:
         self._team_names = set()
         self._init_team_context()
 
+    def _normalize_team_name(self, value: Optional[str]) -> str:
+        return (value or '').strip().upper()
+
+    def _get_team_variants(self, team: Optional[Team] = None, team_name: Optional[str] = None) -> set[str]:
+        variants = set()
+
+        if team is not None:
+            for raw_value in (team.name, team.alias):
+                normalized = self._normalize_team_name(raw_value)
+                if normalized:
+                    variants.add(normalized)
+
+        normalized_name = self._normalize_team_name(team_name)
+        if normalized_name:
+            variants.add(normalized_name)
+
+        if team is None and normalized_name:
+            matched_team = Team.objects.filter(
+                Q(name__iexact=team_name) | Q(alias__iexact=team_name)
+            ).only('name', 'alias').first()
+            if matched_team:
+                variants.update(self._get_team_variants(team=matched_team))
+
+        return variants
+
     # -------------------------
     # Helpers de cache
     # -------------------------
@@ -85,7 +110,7 @@ class StatsService:
         if self.user.is_superuser or self.user.is_staff:
             # Staff/Admin/Superuser pueden ver todo, pero si se especifica team_name, lo usan
             if self.team_name:
-                self._team_names = {self.team_name.upper()}
+                self._team_names = self._get_team_variants(team_name=self.team_name)
             # Si no hay team_name, _team_names queda vacío = ver todos los partidos
         else:
             # Entrenadores: buscar equipos de múltiples fuentes
@@ -94,27 +119,24 @@ class StatsService:
             try:
                 profile = Profile.objects.select_related('team').get(user=self.user)
                 if profile.team:
-                    name = (profile.team.alias or profile.team.name).strip().upper()
-                    if name:
-                        self._team_names.add(name)
+                    self._team_names.update(self._get_team_variants(team=profile.team))
             except Profile.DoesNotExist:
                 pass
             
             # 2. Desde CoachTournamentTeamParticipation (todas las participaciones)
             participations = CoachTournamentTeamParticipation.objects.filter(
-                user=self.user
+                user=self.user,
+                active=True,
             ).select_related('team')
             
             for p in participations:
-                name = (p.team.alias or p.team.name).strip().upper()
-                if name:
-                    self._team_names.add(name)
+                self._team_names.update(self._get_team_variants(team=p.team))
             
             # Si se especificó team_name, filtrar solo ese (si el usuario tiene acceso)
             if self.team_name:
-                specified = self.team_name.upper()
-                if specified in self._team_names or not self._team_names:
-                    self._team_names = {specified}
+                specified_variants = self._get_team_variants(team_name=self.team_name)
+                if specified_variants & self._team_names or not self._team_names:
+                    self._team_names = specified_variants
 
     def _get_base_matches_queryset(self, include_tournament_filter: bool = True):
         """Retorna el queryset base de partidos según contexto."""
@@ -731,11 +753,13 @@ class StatsService:
                 outcome = normalize_outcome((row.get('resultado') or '').strip())
                 if not outcome:
                     continue
-                follow_raw = (row.get('sigue_con') or 'Sin dato').strip() or 'Sin dato'
+                follow_raw = (row.get('sigue_con') or '').strip()
                 # Normalizar variantes de "8" en sigue_con
                 follow_key = follow_raw.replace('.', '').replace(' ', '').upper()
                 if follow_key in ('8', '8VO'):
                     follow = '8.vo'
+                elif not follow_key or follow_key == 'SINDATO':
+                    follow = 'JUEGO'
                 else:
                     follow = follow_raw
                 labels_set.add(follow)

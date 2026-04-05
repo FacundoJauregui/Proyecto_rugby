@@ -158,6 +158,11 @@ class Play(models.Model):
     jugada = models.CharField(max_length=255, blank=True, verbose_name="Jugada")  # Nombre corto / etiqueta principal.
     arbitro = models.CharField(max_length=255, blank=True, verbose_name="Arbitro")  # Árbitro responsable de la acción.
     canal_de_inicio = models.CharField(max_length=100, blank=True, verbose_name="Canal de Inicio")  # Canal / origen táctico.
+    desde = models.CharField(max_length=100, blank=True, verbose_name="Desde")  # Origen previo de la jugada.
+    canal = models.CharField(max_length=100, blank=True, verbose_name="Canal")  # Canal de circulación.
+    fases = models.CharField(max_length=255, blank=True, verbose_name="Fases")  # Conteo o descripción de fases.
+    opcion = models.CharField(max_length=100, blank=True, verbose_name="Opción")  # Opción seleccionada en la jugada.
+    zona = models.CharField(max_length=100, blank=True, verbose_name="Zona")  # Zona asociada a la jugada.
     evento = models.CharField(max_length=255, blank=True, verbose_name="Evento", db_index=True)  # Tipo general de evento.
     equipo = models.CharField(max_length=255, blank=True, verbose_name="Equipo", db_index=True)  # Equipo asociado.
     fin = models.DecimalField(max_digits=9, decimal_places=3, verbose_name="Fin (segundos)", help_text="Segundo exacto de fin (ms)")  # Marca temporal final.
@@ -327,3 +332,30 @@ class SelectionPreset(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.user.username} - match {self.match_id})"
+
+
+class GpsMetric(models.Model):
+    """Métricas GPS por jugador para un partido específico.
+
+    Se cargan desde archivos CSV/XLSX provenientes de wearables/trackers.
+    """
+
+    match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='gps_metrics')
+    name = models.CharField(max_length=100, db_index=True)
+    total_distance = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    metres_per_minute = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    high_speed_running = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    accelerations = models.IntegerField(null=True, blank=True)
+    decelerations = models.IntegerField(null=True, blank=True)
+    hml_distance = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    sprints = models.IntegerField(null=True, blank=True)
+    sprint_distance = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Métrica GPS"
+        verbose_name_plural = "Métricas GPS"
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} - {self.match}" 

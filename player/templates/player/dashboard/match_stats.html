@@ -1,13 +1,23 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Estadísticas del Partido - SportFrame{% endblock %}
+{% block title %}Estadísticas del Partido - LA DINASTIA{% endblock %}
 
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
 <div class="max-w-7xl mx-auto">
+    {% if messages %}
+    <div class="mb-4 space-y-2">
+        {% for message in messages %}
+        <div class="p-3 rounded-lg text-sm {% if 'error' in message.tags %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-100 dark:border-red-800{% elif 'warning' in message.tags %}bg-yellow-50 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-50 dark:border-yellow-700{% else %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-100 dark:border-green-800{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Header con navegación -->
     <div class="mb-6 flex items-center justify-between">
         <div>
@@ -155,6 +165,94 @@
         </div>
     </div>
 
+    <!-- Carga de métricas GPS al final -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-10">
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div class="flex-1 min-w-0">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Métricas GPS (CSV o XLSX)</h2>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Formato esperado: Name, Total Distance, Metres per Minute, High Speed Running (absolute), Accelerations, Decelerations, HML Distance, Sprints, Sprint Distance.</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">La carga reemplaza los datos previos de este partido.</p>
+            </div>
+            {% with match_key=match.home_team|slugify|add:'_'|add:match.away_team|slugify|add:'_'|add:match.match_date|date:'Ymd' %}
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 sm:justify-end lg:ml-auto">
+                <form method="post" enctype="multipart/form-data" class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="match_key" value="{{ match_key }}">
+                    <input type="file" name="gps_file" accept=".csv,.xlsx,.xlsm" class="sm:w-64 lg:w-72 text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-200 dark:bg-gray-700 dark:border-gray-600">
+                    <button type="submit" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg shadow focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800">Cargar métricas</button>
+                </form>
+                <form method="post" onsubmit="return confirm('¿Seguro que querés borrar las métricas GPS de este partido?');" class="flex">
+                    {% csrf_token %}
+                    <input type="hidden" name="clear_gps" value="1">
+                    <input type="hidden" name="match_key" value="{{ match_key }}">
+                    <button type="submit" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow focus:ring-4 focus:ring-red-300 dark:focus:ring-red-800">Borrar métricas</button>
+                </form>
+            </div>
+            {% endwith %}
+        </div>
+
+        {% if gps_metrics %}
+        <div class="mt-6">
+            <div class="flex justify-center mb-4">
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" data-gps-tab="tabla" class="gps-tab-btn px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 bg-blue-600 text-white">Tabla</button>
+                    <button type="button" data-gps-tab="intensidad" class="gps-tab-btn px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700">Ranking intensidad (m/min)</button>
+                    <button type="button" data-gps-tab="scatter" class="gps-tab-btn px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700">Volumen vs Explosividad</button>
+                </div>
+            </div>
+
+            <div id="gps-panel-tabla" class="gps-panel">
+                <div class="overflow-x-auto">
+                    <table id="gpsTable" class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
+                        <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                            <tr>
+                                <th class="px-3 py-2 cursor-pointer select-none" data-sort="string">Jugador</th>
+                                <th class="px-3 py-2 text-right cursor-pointer select-none" data-sort="number">Total Distance</th>
+                                <th class="px-3 py-2 text-right cursor-pointer select-none" data-sort="number">Metres/Min</th>
+                                <th class="px-3 py-2 text-right cursor-pointer select-none" data-sort="number">HSR (Abs)</th>
+                                <th class="px-3 py-2 text-right cursor-pointer select-none" data-sort="number">Accels</th>
+                                <th class="px-3 py-2 text-right cursor-pointer select-none" data-sort="number">Decels</th>
+                                <th class="px-3 py-2 text-right cursor-pointer select-none" data-sort="number">HML Distance</th>
+                                <th class="px-3 py-2 text-right cursor-pointer select-none" data-sort="number">Sprints</th>
+                                <th class="px-3 py-2 text-right cursor-pointer select-none" data-sort="number">Sprint Distance</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for m in gps_metrics %}
+                            <tr>
+                                <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{{ m.name }}</td>
+                                <td class="px-3 py-2 text-right">{{ m.total_distance|default:"—" }}</td>
+                                <td class="px-3 py-2 text-right">{{ m.metres_per_minute|default:"—" }}</td>
+                                <td class="px-3 py-2 text-right">{{ m.high_speed_running|default:"—" }}</td>
+                                <td class="px-3 py-2 text-right">{{ m.accelerations|default:"—" }}</td>
+                                <td class="px-3 py-2 text-right">{{ m.decelerations|default:"—" }}</td>
+                                <td class="px-3 py-2 text-right">{{ m.hml_distance|default:"—" }}</td>
+                                <td class="px-3 py-2 text-right">{{ m.sprints|default:"—" }}</td>
+                                <td class="px-3 py-2 text-right">{{ m.sprint_distance|default:"—" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="gps-panel-intensidad" class="gps-panel hidden">
+                <div class="h-96">
+                    <canvas id="gpsIntensityChart"></canvas>
+                </div>
+            </div>
+
+            <div id="gps-panel-scatter" class="gps-panel hidden">
+                <div class="h-96 flex-1 min-w-0">
+                    <canvas id="gpsScatterChart" class="w-full h-full"></canvas>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">Aún no hay métricas GPS cargadas para este partido.</p>
+        {% endif %}
+    </div>
+
     {% else %}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
         <p class="text-gray-500 dark:text-gray-400">No hay estadísticas disponibles para este partido.</p>
@@ -164,10 +262,23 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const matchStats = {{ match_stats_json|safe }};
-    
-    if (!matchStats || !matchStats.team_stats) return;
-    
+    const matchStats = {{ match_stats_json|safe }} || {};
+    const gpsMetrics = [
+        {% for m in gps_metrics %}
+        {
+            name: '{{ m.name|escapejs }}',
+            total_distance: {{ m.total_distance|default:'null' }},
+            metres_per_minute: {{ m.metres_per_minute|default:'null' }},
+            high_speed_running: {{ m.high_speed_running|default:'null' }},
+            accelerations: {{ m.accelerations|default:'null' }},
+            decelerations: {{ m.decelerations|default:'null' }},
+            hml_distance: {{ m.hml_distance|default:'null' }},
+            sprints: {{ m.sprints|default:'null' }},
+            sprint_distance: {{ m.sprint_distance|default:'null' }},
+        },
+        {% endfor %}
+    ];
+
     const isDarkMode = document.documentElement.classList.contains('dark');
     const textColor = isDarkMode ? '#E5E7EB' : '#374151';
     const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
@@ -179,7 +290,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Lines stacked por sigue_con
     if (matchStats.set_pieces && matchStats.set_pieces.line_breakdown) {
         const bd = matchStats.set_pieces.line_breakdown;
-        const labels = [...bd.outcomes, 'Recuperados'];
+        const outcomeLabelMap = {
+            'Gana': 'GANA',
+            'Gana sucio': 'GANA SUCIO',
+            'Pierde': 'PERDIDOS'
+        };
+        const labels = [...bd.outcomes.map(outcome => outcomeLabelMap[outcome] || outcome.toUpperCase()), 'RECUPERADOS'];
         const followLabels = bd.labels;
         const palette = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6366F1', '#14B8A6', '#F97316', '#06B6D4'];
         const datasets = followLabels.map((lab, idx) => ({
@@ -189,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
             stack: 'lineStack'
         }));
         datasets.push({
-            label: 'Recuperados',
+            label: 'RECUPERADOS',
             data: labels.map((_, i) => i === labels.length - 1 ? matchStats.set_pieces.line_recovered : 0),
             backgroundColor: '#94A3B8',
             stack: 'lineStack'
@@ -221,24 +337,35 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Scrums stacked por sigue_con
-    if (matchStats.set_pieces && matchStats.set_pieces.scrum_breakdown) {
-        const bd = matchStats.set_pieces.scrum_breakdown;
-        const labels = [...bd.outcomes, 'Recuperados'];
-        const followLabels = bd.labels;
-        const palette = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6366F1', '#14B8A6', '#F97316', '#06B6D4'];
-        const datasets = followLabels.map((lab, idx) => ({
-            label: lab,
-            data: [...bd.matrix.map(row => row[idx]), 0],
-            backgroundColor: palette[idx % palette.length],
-            stack: 'scrumStack'
-        }));
-        datasets.push({
-            label: 'Recuperados',
-            data: labels.map((_, i) => i === labels.length - 1 ? matchStats.set_pieces.scrum_recovered : 0),
-            backgroundColor: '#94A3B8',
-            stack: 'scrumStack'
-        });
+    // Scrums: barras separadas para GANA, GANA SUCIO, Perdidos y Recuperados
+    if (matchStats.set_pieces) {
+        const labels = ['GANA', 'GANA SUCIO', 'PERDIDOS', 'RECUPERADOS'];
+        const datasets = [
+            {
+                label: 'GANA',
+                data: [matchStats.set_pieces.scrum_won_clean || 0, 0, 0, 0],
+                backgroundColor: '#10B981',
+                stack: 'scrumStack'
+            },
+            {
+                label: 'GANA SUCIO',
+                data: [0, matchStats.set_pieces.scrum_won_dirty || 0, 0, 0],
+                backgroundColor: '#F59E0B',
+                stack: 'scrumStack'
+            },
+            {
+                label: 'PERDIDOS',
+                data: [0, 0, matchStats.set_pieces.scrum_lost || 0, 0],
+                backgroundColor: '#EF4444',
+                stack: 'scrumStack'
+            },
+            {
+                label: 'RECUPERADOS',
+                data: [0, 0, 0, matchStats.set_pieces.scrum_recovered || 0],
+                backgroundColor: '#94A3B8',
+                stack: 'scrumStack'
+            }
+        ];
         new Chart(document.getElementById('scrumChart').getContext('2d'), {
             type: 'bar',
             data: { labels, datasets },
@@ -264,6 +391,224 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+    }
+
+    // ----- GPS Panels -----
+    if (gpsMetrics.length > 0) {
+        // Sortable GPS table
+        const setupGpsTableSort = () => {
+            const table = document.getElementById('gpsTable');
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            const headers = table.querySelectorAll('th[data-sort]');
+            const directions = {};
+
+            const parseValue = (text, type) => {
+                if (type === 'number') {
+                    const num = Number(String(text).replace(',', '.'));
+                    return Number.isFinite(num) ? num : -Infinity;
+                }
+                return String(text).toLowerCase();
+            };
+
+            headers.forEach((th, idx) => {
+                directions[idx] = 1;
+                th.addEventListener('click', () => {
+                    const type = th.dataset.sort || 'string';
+                    const rows = Array.from(tbody.querySelectorAll('tr'));
+                    const dir = directions[idx] || 1;
+                    rows.sort((a, b) => {
+                        const aText = a.children[idx]?.textContent.trim() || '';
+                        const bText = b.children[idx]?.textContent.trim() || '';
+                        const aVal = parseValue(aText, type);
+                        const bVal = parseValue(bText, type);
+                        if (aVal < bVal) return -1 * dir;
+                        if (aVal > bVal) return 1 * dir;
+                        return 0;
+                    });
+                    rows.forEach(r => tbody.appendChild(r));
+                    directions[idx] = -dir;
+                });
+            });
+        };
+
+        const tabButtons = document.querySelectorAll('.gps-tab-btn');
+        const panels = {
+            tabla: document.getElementById('gps-panel-tabla'),
+            intensidad: document.getElementById('gps-panel-intensidad'),
+            scatter: document.getElementById('gps-panel-scatter'),
+        };
+
+        let intensityChart = null;
+        let scatterChart = null;
+
+        const parseMetric = (value) => {
+            if (value === null || value === undefined || value === '') return null;
+            const normalized = String(value).replace(',', '.');
+            const num = Number(normalized);
+            return Number.isFinite(num) ? num : null;
+        };
+
+        const colorForMpm = (mpm) => {
+            const min = 32;
+            const max = 80;
+            const clamped = Math.min(Math.max(mpm || 0, min), max);
+            const t = (clamped - min) / (max - min);
+            const r = Math.round(59 + (239 - 59) * t);   // from #3B82F6 to #EF4444
+            const g = Math.round(130 + (68 - 130) * t);
+            const b = Math.round(246 + (68 - 246) * t);
+            return `rgb(${r}, ${g}, ${b})`;
+        };
+
+        const radiusForSprintDistance = (sd) => {
+            const val = Number(sd) || 0;
+            if (val <= 0) return 5;
+            return Math.max(6, Math.min(26, Math.sqrt(val / 8)));
+        };
+
+        const buildIntensityChart = () => {
+            const ctx = document.getElementById('gpsIntensityChart');
+            if (!ctx) return;
+            const rows = [...gpsMetrics]
+                .map(m => ({ ...m, metres_per_minute: parseMetric(m.metres_per_minute) }))
+                .filter(m => m.metres_per_minute !== null)
+                .sort((a, b) => (b.metres_per_minute || 0) - (a.metres_per_minute || 0));
+            const labels = rows.map(r => r.name);
+            const data = rows.map(r => r.metres_per_minute || 0);
+            const colors = rows.map(r => colorForMpm(r.metres_per_minute));
+            intensityChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'm/min',
+                        data,
+                        backgroundColor: colors,
+                        borderRadius: 6,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            color: textColor,
+                            anchor: 'end',
+                            align: 'right',
+                            formatter: v => v ? v.toFixed(0) : '',
+                        }
+                    },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: gridColor } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        };
+
+        const buildScatterChart = () => {
+            const ctx = document.getElementById('gpsScatterChart');
+            if (!ctx) return;
+            if (scatterChart) {
+                scatterChart.destroy();
+            }
+            const points = gpsMetrics
+                .map(m => ({
+                    name: m.name,
+                    x: parseMetric(m.total_distance),
+                    y: parseMetric(m.sprints),
+                    sd: parseMetric(m.sprint_distance),
+                    mpm: parseMetric(m.metres_per_minute),
+                }))
+                .filter(m => m.x !== null && m.y !== null)
+                .map(m => ({
+                    x: m.x,
+                    y: m.y,
+                    name: m.name,
+                    r: radiusForSprintDistance(m.sd),
+                    mpm: m.mpm,
+                    sd: m.sd,
+                }));
+
+            scatterChart = new Chart(ctx, {
+                type: 'bubble',
+                data: {
+                    datasets: [{
+                        label: 'Volumen vs Explosividad',
+                        data: points,
+                        backgroundColor: points.map(p => colorForMpm(p.mpm)),
+                        borderColor: 'rgba(55,65,81,0.4)',
+                        borderWidth: 1,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const p = ctx.raw;
+                                    return `${p.name}: ${p.x || 0} m, ${p.y || 0} sprints, ${p.sd || 0} m sprint dist, ${p.mpm || 0} m/min`;
+                                }
+                            }
+                        },
+                        datalabels: {
+                            align: 'end',
+                            anchor: 'center',
+                            offset: 6,
+                            color: textColor,
+                            formatter: (v) => v && v.name ? v.name : '',
+                            clip: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Distancia Total (m)' },
+                            grid: { color: gridColor }
+                        },
+                        y: {
+                            title: { display: true, text: 'Cantidad de Sprints' },
+                            grid: { color: gridColor },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        };
+
+        const activateTab = (key) => {
+            Object.entries(panels).forEach(([k, el]) => {
+                if (!el) return;
+                if (k === key) {
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            });
+            tabButtons.forEach(btn => {
+                if (btn.dataset.gpsTab === key) {
+                    btn.classList.add('bg-blue-600', 'text-white');
+                    btn.classList.remove('bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+                } else {
+                    btn.classList.remove('bg-blue-600', 'text-white');
+                    btn.classList.add('bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+                }
+            });
+
+            if (key === 'intensidad' && !intensityChart) buildIntensityChart();
+            if (key === 'scatter' && !scatterChart) buildScatterChart();
+        };
+
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', () => activateTab(btn.dataset.gpsTab));
+        });
+
+        setupGpsTableSort();
+        activateTab('tabla');
     }
 
     // Posesiones por resultado (termina)
@@ -305,7 +650,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Pelotas perdidas por zona (zona_fin)
-    if (matchStats.team_stats.lost_by_zone && matchStats.team_stats.lost_by_zone.length > 0) {
+    if (matchStats.team_stats && matchStats.team_stats.lost_by_zone && matchStats.team_stats.lost_by_zone.length > 0) {
         new Chart(document.getElementById('lostZonaChart').getContext('2d'), {
             type: 'bar',
             data: {

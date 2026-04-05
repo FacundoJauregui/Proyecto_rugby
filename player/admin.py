@@ -7,7 +7,7 @@ from django.utils.html import format_html
 from urllib.parse import urlencode
 from django.contrib import messages
 
-from .models import Match, Play, Team, Profile, Country, Tournament, CoachTournamentTeamParticipation
+from .models import Match, Play, Team, Profile, Country, Tournament, CoachTournamentTeamParticipation, GpsMetric
 
 # --- Configuración para el modelo User y Profile ---
 class ProfileInline(admin.StackedInline):
@@ -99,3 +99,20 @@ class CoachTournamentTeamParticipationAdmin(admin.ModelAdmin):
     list_filter = ('active', 'season')
     search_fields = ('user__username', 'team__name', 'team__alias', 'season')
     autocomplete_fields = ('user', 'team')
+
+
+@admin.register(GpsMetric)
+class GpsMetricAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'match',
+        'total_distance',
+        'metres_per_minute',
+        'high_speed_running',
+        'sprints',
+        'sprint_distance',
+        'created_at',
+    )
+    search_fields = ('name', 'match__home_team', 'match__away_team')
+    list_filter = ('match',)
+    autocomplete_fields = ('match',)

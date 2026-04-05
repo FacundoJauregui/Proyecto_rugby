@@ -68,10 +68,9 @@
         <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Controles</h2>
         <div class="flex flex-col gap-2 mb-3">
           <button id="play-selection-btn" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>▶️ Reproducir Selección</button>
-          <div class="flex flex-row gap-2">
-            <button id="export-filters-btn" type="button" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">⬇️ Exportar filtradas</button>
-            <button id="export-selected-btn" type="button" disabled class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">⬇️ Exportar seleccionadas (CSV)</button>
-            <button id="export-selected-mp4-btn" type="button" disabled class="w-full mt-2 text-white bg-green-600 hover:bg-green-700 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">🎬 Exportar seleccionadas (MP4)</button>
+          <div class="flex flex-wrap gap-2">
+            <button id="export-filters-btn" type="button" class="flex-1 min-w-[140px] text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-4 py-2.5">⬇️ Exportar filtradas</button>
+            <button id="export-selected-btn" type="button" disabled class="flex-1 min-w-[140px] text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed">⬇️ Exportar seleccionadas (CSV)</button>
           </div>
 
           <!-- Nuevo: Deshacer Selección (borra selección en memoria solo en esta vista) -->
@@ -130,9 +129,43 @@
   <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- 50% izquierdo: Lista de Jugadas -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 overflow-x-auto">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Lista de Jugadas</h2>
-        <span class="text-xs font-medium px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">Total: {{ plays_total }}</span>
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div class="flex items-center gap-2">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Lista de Jugadas</h2>
+          <span class="text-xs font-medium px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">Total: {{ plays_total }}</span>
+        </div>
+        <div class="flex flex-wrap items-start gap-2 text-xs text-gray-700 dark:text-gray-300" id="column-toggle-wrapper">
+          <span class="font-semibold mt-1">Columnas:</span>
+          <div class="flex flex-wrap gap-2" id="column-toggle-container">
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="1" class="h-4 w-4" checked> <span>Jugada</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="2" class="h-4 w-4"> <span>Canal Inicio</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="3" class="h-4 w-4" checked> <span>Equipo</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="4" class="h-4 w-4" checked> <span>Fin</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="5" class="h-4 w-4"> <span>Inicia</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="6" class="h-4 w-4" checked> <span>Inicio</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="7" class="h-4 w-4" checked> <span>Termina</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="8" class="h-4 w-4"> <span>Tiempo</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="9" class="h-4 w-4" checked> <span>Zona Fin</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="10" class="h-4 w-4" checked> <span>Zona Inicio</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="11" class="h-4 w-4" checked> <span>Resultado</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="12" class="h-4 w-4"> <span>Sigue Con</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="13" class="h-4 w-4"> <span>Pos Tiro</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="14" class="h-4 w-4"> <span>Set</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="15" class="h-4 w-4"> <span>Tiro</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="16" class="h-4 w-4"> <span>Tipo</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="17" class="h-4 w-4"> <span>Acción</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="18" class="h-4 w-4"> <span>Termina En</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="19" class="h-4 w-4" checked> <span>Sanción</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="20" class="h-4 w-4"> <span>Situación</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="21" class="h-4 w-4"> <span>Transición</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="22" class="h-4 w-4"> <span>Situación Penal</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="23" class="h-4 w-4"> <span>Desde</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="24" class="h-4 w-4"> <span>Canal</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="25" class="h-4 w-4" checked> <span>Fases</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="26" class="h-4 w-4"> <span>Opción</span></label>
+            <label class="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700"><input type="checkbox" data-col="27" class="h-4 w-4"> <span>Zona</span></label>
+          </div>
+        </div>
       </div>
       <!-- Agrego clases para evitar colapso y habilitar scroll horizontal -->
       <table id="plays-table" class="min-w-full min-w-max whitespace-nowrap text-sm text-left text-gray-500 dark:text-gray-400 display nowrap" style="width:100%">
@@ -140,13 +173,32 @@
           <tr>
             <th class="p-2"><input type="checkbox" id="dt-select-all"></th>
             <th class="p-2">Jugada</th>
+            <th class="p-2">Canal Inicio</th>
             <th class="p-2">Equipo</th>
+            <th class="p-2">Fin</th>
             <th class="p-2">Inicia</th>
-            <th class="p-2">Zona Inicio</th>
+            <th class="p-2">Inicio</th>
             <th class="p-2">Termina</th>
+            <th class="p-2">Tiempo</th>
             <th class="p-2">Zona Fin</th>
+            <th class="p-2">Zona Inicio</th>
             <th class="p-2">Resultado</th>
+            <th class="p-2">Sigue Con</th>
+            <th class="p-2">Pos Tiro</th>
+            <th class="p-2">Set</th>
+            <th class="p-2">Tiro</th>
+            <th class="p-2">Tipo</th>
+            <th class="p-2">Acción</th>
+            <th class="p-2">Termina En</th>
             <th class="p-2">Sanción</th>
+            <th class="p-2">Situación</th>
+            <th class="p-2">Transición</th>
+            <th class="p-2">Situación Penal</th>
+            <th class="p-2">Desde</th>
+            <th class="p-2">Canal</th>
+            <th class="p-2">Fases</th>
+            <th class="p-2">Opción</th>
+            <th class="p-2">Zona</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -225,7 +277,6 @@
 
       const exportFiltersBtn = document.getElementById('export-filters-btn');
       const exportSelectedBtn = document.getElementById('export-selected-btn');
-      const exportSelectedMp4Btn = document.getElementById('export-selected-mp4-btn');
       const playBtn = document.getElementById('play-selection-btn');
       const dtSelectAll = document.getElementById('dt-select-all');
       const clearSelectionBtn = document.getElementById('clear-selection-btn');
@@ -238,23 +289,40 @@
       // Índices de columnas del backend (ajusta aquí si tu endpoint cambia)
       const IDX = {
         id: 0,
-        inicio: 1,       // "INICIA" (timestamp)
-        fin: 2,          // "TERMINA" (timestamp)
-        evento: 3,       // evento (fallback si no hay jugada)
-        equipo: 4,       // EQUIPO
-        jugada: 5,       // JUGADA
-        zona_inicio: 6,  // ZONA INICIO
-        zona_fin: 7,     // ZONA FIN
-        resultado: 8,    // RESULTADO
-        sancion: 9       // SANCION
+        jugada: 1,
+        canal_de_inicio: 2,
+        equipo: 3,
+        fin: 4,
+        inicia: 5,
+        inicio: 6,
+        termina: 7,
+        tiempo: 8,
+        zona_fin: 9,
+        zona_inicio: 10,
+        resultado: 11,
+        sigue_con: 12,
+        pos_tiro: 13,
+        set: 14,
+        tiro: 15,
+        tipo: 16,
+        accion: 17,
+        termina_en: 18,
+        sancion: 19,
+        situacion: 20,
+        transicion: 21,
+        situacion_penal: 22,
+        desde: 23,
+        canal: 24,
+        fases: 25,
+        opcion: 26,
+        zona: 27,
       };
 
-      // Caché de metadatos por id (id -> {id, equipo, evento/jugada, inicio, fin})
+      // Caché de metadatos por id (id -> {id, equipo, jugada, inicio, fin})
       const playMetaCache = (window.playMetaCache = window.playMetaCache || new Map());
 
       const updateButtons = () => {
         if (exportSelectedBtn) exportSelectedBtn.disabled = selectedSet.size === 0;
-        if (exportSelectedMp4Btn) exportSelectedMp4Btn.disabled = selectedSet.size === 0;
         if (playBtn) playBtn.disabled = selectedSet.size === 0;
       };
       window.updateButtons = updateButtons;
@@ -274,7 +342,7 @@
                 playMetaCache.set(String(p.id), {
                   id: p.id,
                   equipo: p.equipo || '',
-                  evento: p.evento || p.jugada || '',
+                  evento: p.jugada || '',
                   inicio: p.inicio ?? '',
                   fin: p.fin ?? ''
                 });
@@ -335,8 +403,8 @@
         language: {
           lengthMenu: '_MENU_ Jugadas por pagina'
         },
-  // Ordenar por la columna visible "Inicia" (índice visible 3)
-  order: [[3, 'asc']],
+  // Ordenar por la columna visible "Fin" (índice visible 4)
+  order: [[4, 'asc']],
         info: false,
         scrollX: true,                  // scrollbar horizontal de DataTables
         autoWidth: false,               // evitá que calcule widths raros
@@ -375,22 +443,41 @@
               const inicio = row[IDX.inicio] ?? '';
               const fin = row[IDX.fin] ?? '';
               const equipo = row[IDX.equipo] ?? '';
-              const jugada = row[IDX.jugada] ?? row[IDX.evento] ?? '';
+              const jugada = row[IDX.jugada] ?? '';
               const checked = selectedSet.has(String(id)) ? 'checked' : '';
               // Cache para el panel de selección
               playMetaCache.set(String(id), { id, equipo, evento: jugada, inicio, fin });
               return `<input type="checkbox" class="dt-play" value="${id}" data-start="${inicio}" data-end="${fin}" data-event="${jugada}" data-equipo="${equipo}" ${checked}>`;
             }
           },
-          // Orden requerido: JUGADA, EQUIPO, INICIA, ZONA INICIO, TERMINA, ZONA FIN, RESULTADO, SANCION
-          { data: IDX.jugada,   title: 'Jugada',      defaultContent: '' },
-          { data: IDX.equipo,   title: 'Equipo',      defaultContent: '' },
-          { data: IDX.inicio,   title: 'Inicia',      defaultContent: '' },
-          { data: IDX.zona_inicio, title: 'Zona Inicio', defaultContent: '' },
-          { data: IDX.fin,      title: 'Termina',     defaultContent: '' },
-          { data: IDX.zona_fin, title: 'Zona Fin',    defaultContent: '' },
-          { data: IDX.resultado, title: 'Resultado',  defaultContent: '' },
-          { data: IDX.sancion,  title: 'Sanción',     defaultContent: '' },
+          // Columnas completas en el mismo orden que el backend
+          { data: IDX.jugada,          title: 'Jugada',          defaultContent: '' },
+          { data: IDX.canal_de_inicio, title: 'Canal Inicio',    defaultContent: '' },
+          { data: IDX.equipo,          title: 'Equipo',          defaultContent: '' },
+          { data: IDX.fin,             title: 'Fin',             defaultContent: '' },
+          { data: IDX.inicia,          title: 'Inicia',          defaultContent: '' },
+          { data: IDX.inicio,          title: 'Inicio',          defaultContent: '' },
+          { data: IDX.termina,         title: 'Termina',         defaultContent: '' },
+          { data: IDX.tiempo,          title: 'Tiempo',          defaultContent: '' },
+          { data: IDX.zona_fin,        title: 'Zona Fin',        defaultContent: '' },
+          { data: IDX.zona_inicio,     title: 'Zona Inicio',     defaultContent: '' },
+          { data: IDX.resultado,       title: 'Resultado',       defaultContent: '' },
+          { data: IDX.sigue_con,       title: 'Sigue Con',       defaultContent: '' },
+          { data: IDX.pos_tiro,        title: 'Pos Tiro',        defaultContent: '' },
+          { data: IDX.set,             title: 'Set',             defaultContent: '' },
+          { data: IDX.tiro,            title: 'Tiro',            defaultContent: '' },
+          { data: IDX.tipo,            title: 'Tipo',            defaultContent: '' },
+          { data: IDX.accion,          title: 'Acción',          defaultContent: '' },
+          { data: IDX.termina_en,      title: 'Termina En',      defaultContent: '' },
+          { data: IDX.sancion,         title: 'Sanción',         defaultContent: '' },
+          { data: IDX.situacion,       title: 'Situación',       defaultContent: '' },
+          { data: IDX.transicion,      title: 'Transición',      defaultContent: '' },
+          { data: IDX.situacion_penal, title: 'Situación Penal', defaultContent: '' },
+          { data: IDX.desde,           title: 'Desde',           defaultContent: '' },
+          { data: IDX.canal,           title: 'Canal',           defaultContent: '' },
+          { data: IDX.fases,           title: 'Fases',           defaultContent: '' },
+          { data: IDX.opcion,          title: 'Opción',          defaultContent: '' },
+          { data: IDX.zona,            title: 'Zona',            defaultContent: '' },
         ],
         drawCallback: function(){
           const allVisible = Array.from(document.querySelectorAll('#plays-table .dt-play'));
@@ -400,6 +487,20 @@
           updateLengthLabel();
         }
       });
+
+      // Toggle de columnas visibles (checkboxes -> DataTable columns)
+      const columnToggleContainer = document.getElementById('column-toggle-container');
+      if (columnToggleContainer) {
+        columnToggleContainer.querySelectorAll('input[data-col]').forEach(cb => {
+          const idx = parseInt(cb.dataset.col, 10);
+          if (Number.isNaN(idx)) return;
+          // Aplicar estado inicial (ocultar columnas no marcadas)
+          dt.column(idx).visible(cb.checked);
+          cb.addEventListener('change', () => {
+            dt.column(idx).visible(cb.checked);
+          });
+        });
+      }
 
       // Resto: listeners (sin cambios)
       document.querySelector('#plays-table').addEventListener('change', (e) => {
@@ -461,19 +562,6 @@
           if (!ids) return;
           const params = new URLSearchParams(window.location.search);
           params.set('export', 'csv');
-          params.set('ids', ids);
-          const url = `${window.location.pathname}?${params.toString()}`;
-          window.open(url, '_blank');
-        });
-      }
-
-      if (exportSelectedMp4Btn) {
-        exportSelectedMp4Btn.addEventListener('click', function(ev){
-          ev.preventDefault();
-          const ids = Array.from(selectedSet).join(',');
-          if (!ids) return;
-          const params = new URLSearchParams(window.location.search);
-          params.set('export', 'mp4');
           params.set('ids', ids);
           const url = `${window.location.pathname}?${params.toString()}`;
           window.open(url, '_blank');
