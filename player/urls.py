@@ -16,7 +16,7 @@ from .views import (
     MatchSelectionPresetDetailView,
     MatchSelectionPresetUploadCSVView,
 )
-from .views_admin import AdminUserCreateView, CoachPlayerCreateView
+from .views_admin import AdminUserCreateView, CoachPlayerCreateView, CreateInvitationView, PlayerRegistrationView
 from .views_dashboard import (
     DashboardIndexView,
     TeamStatsView,
@@ -38,6 +38,10 @@ urlpatterns = [
     path('accounts/user/add/', AdminUserCreateView.as_view(), name='admin_user_add'),
     # NUEVO: crear jugador (entrenador)
     path('accounts/player/add/', CoachPlayerCreateView.as_view(), name='coach_player_add'),
+    # NUEVO: crear invitación
+    path('accounts/invitation/add/', CreateInvitationView.as_view(), name='create_invitation'),
+    # NUEVO: registro de jugador por token
+    path('register/<uuid:token>/', PlayerRegistrationView.as_view(), name='player_register'),
 
 
     

@@ -138,6 +138,22 @@
             }
         });
     }
+
+    const prevPlayBtn = document.getElementById('prev-play-btn');
+    if (prevPlayBtn) {
+        prevPlayBtn.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            playPreviousVideo();
+        });
+    }
+
+    const nextPlayBtn = document.getElementById('next-play-btn');
+    if (nextPlayBtn) {
+        nextPlayBtn.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            playNextVideo();
+        });
+    }
     
     function startCurrentVideo() {
         clearAllHighlights();
@@ -153,6 +169,14 @@
 
         player.seekTo(currentPlay.start, true);
         player.playVideo();
+        updateNavButtons();
+    }
+
+    function updateNavButtons() {
+        const prevBtn = document.getElementById('prev-play-btn');
+        const nextBtn = document.getElementById('next-play-btn');
+        if (prevBtn) prevBtn.disabled = (playlist.length === 0 || currentPlayIndex <= 0);
+        if (nextBtn) nextBtn.disabled = (playlist.length === 0 || currentPlayIndex >= playlist.length - 1);
     }
 
     function playNextVideo() {
@@ -166,8 +190,16 @@
             clearAllHighlights();
             // CAMBIO 3: Reseteamos el panel al terminar la playlist
             resetNowPlayingPanel();
+            updateNavButtons();
         }
     };
+
+    function playPreviousVideo() {
+        if (playlist.length === 0 || currentPlayIndex <= 0) return;
+        clearInterval(timeChecker);
+        currentPlayIndex--;
+        startCurrentVideo();
+    }
     // =============================================================== //
     //           ⌨️  NUEVA SECCIÓN: Atajos de Teclado ⌨️                //
     // =============================================================== //

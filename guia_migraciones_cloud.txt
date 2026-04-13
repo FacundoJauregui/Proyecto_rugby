@@ -1,0 +1,57 @@
+=== GUIA: COMO MIGRAR NUEVOS MODELOS A PRODUCCION (CLOUD SQL) SIN PERDER DATOS ===
+
+Esta guía explica cómo enviar cambios de base de datos (nuevas tablas, nuevos campos) a tu base de datos en Google Cloud (Cloud SQL) sin necesidad de hacer Dumps ni borrar los datos existentes.
+
+-------------------------------------------------------------------------------
+PASO 1: CONECTARSE AL PROXY LOCAL
+-------------------------------------------------------------------------------
+Abre una terminal normal en Windows (PowerShell) y levanta el proxy de Google:
+
+cd C:\tools\cloud-sql-proxy
+.\cloud-sql-proxy.exe --address 127.0.0.1 --port 5433 spheric-wonder-473601-a9:southamerica-east1:rugby-sql
+
+* Deja esta ventana abierta y minimizada.
+
+-------------------------------------------------------------------------------
+PASO 2: VERIFICAR LA CONEXION Y MIGRACIONES PENDIENTES
+-------------------------------------------------------------------------------
+Abre la terminal integrada de VS Code (asegúrate de que el entorno virtual .venv esté activado).
+Copia y pega TODO ESTE BLOQUE junto y presiona Enter:
+
+$env:DB_ENGINE="django.db.backends.postgresql"
+$env:DB_NAME="rugby_player_db"
+$env:DB_USER="postgres"
+$env:DB_PASSWORD="141304"
+$env:DB_HOST="127.0.0.1"
+$env:DB_PORT="5433"
+python manage.py showmigrations
+
+* Buscarás nombres que no tengan la [X]. Por ejemplo: [ ] 0010_nueva_tabla. 
+* Si ves que hay migraciones sin la X en tu app 'player', significa que el proxy funcionó y Django detectó qué le falta a la base de la nube.
+
+-------------------------------------------------------------------------------
+PASO 3: APLICAR LA MIGRACION (Como usuario Administrador Postgres)
+-------------------------------------------------------------------------------
+En la misma terminal de VS Code, ejecuta el migrate:
+
+python manage.py migrate
+
+* Django creará únicamente las tablas o columnas nuevas, sin tocar ni borrar tus datos antiguos.
+
+-------------------------------------------------------------------------------
+PASO 4: DAR PERMISOS A LA APP (IMPORTANTE PARA CLOUD RUN)
+-------------------------------------------------------------------------------
+Cloud SQL requiere que la nueva tabla tenga permisos para `appuser` (el usuario que usa la página en internet).
+Copia y pega TODO ESTE BLOQUE EXACTAMENTE ASÍ en la misma terminal:
+
+python -c "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'rugby_project.settings'); import django; django.setup(); from django.db import connection; cursor = connection.cursor(); cursor.execute('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO appuser;'); cursor.execute('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO appuser;');"
+
+* Esto no devolverá ningún mensaje si sale bien. Con esto, le aseguramos a la aplicación en Cloud Run que tiene permiso para escribir y leer en las nuevas tablas creadas.
+
+-------------------------------------------------------------------------------
+PASO 5: HACER EL DEPLOY
+-------------------------------------------------------------------------------
+Ya puedes cerrar la ventanita del Proxy. 
+Por último, ejecuta tu script de deploy para subir el código nuevo a Cloud Run, tal como está en `pasos para deploy.txt`.
+
+¡Listo! Tu nueva versión estará 100% funcional en la nube con su base de datos actualizada y los datos originales intactos.

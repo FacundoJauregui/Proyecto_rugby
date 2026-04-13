@@ -723,11 +723,12 @@ class StatsService:
         team_plays = plays.filter(equipo__iexact=team_name)
         opp_plays = plays.filter(equipo__iexact=opp_name)
 
-        # Set pieces: lines y scrums por equipo
+        # Set pieces: lines y scrums del equipo analizado.
+        # El total mostrado en el dashboard debe coincidir con las barras visibles:
+        # ganados, gana sucio, perdidos y recuperados; no debe sumar set pieces del rival
+        # que no forman parte de esas barras.
         line_filter = Q(jugada__iexact='LINE') | Q(jugada__iexact='LINES') | Q(jugada__icontains='LINE')
-        line_total_filter = Q(jugada__iexact='LINE') | Q(jugada__iexact='LINES')
         scrum_filter = Q(jugada__iexact='SCRUMS') | Q(jugada__icontains='SCRUM')
-        scrum_total_filter = Q(jugada__iexact='SCRUMS') & ~Q(resultado__iexact='RESET')
         win_clean_filter = Q(resultado__iexact='GANA')
         win_dirty_filter = Q(resultado__iexact='GANA SUCIO') | Q(resultado__icontains='GANA SUCIO')
         win_any_filter = win_clean_filter | win_dirty_filter | Q(resultado__icontains='GANA')
@@ -737,13 +738,13 @@ class StatsService:
         team_lines_won_dirty = team_plays.filter(line_filter & win_dirty_filter).count()
         team_lines_lost = team_plays.filter(line_filter & lose_filter).count()
         opp_lines_lost = opp_plays.filter(line_filter & lose_filter).count()  # lines recuperados
-        total_lines_match = plays.filter(line_total_filter).count()
+        total_lines_match = team_lines_won_clean + team_lines_won_dirty + team_lines_lost + opp_lines_lost
         team_scrums_won_clean = team_plays.filter(scrum_filter & win_clean_filter).count()
         team_scrums_won_dirty = team_plays.filter(scrum_filter & win_dirty_filter).count()
         team_scrums_lost = team_plays.filter(scrum_filter & lose_filter).count()
         team_scrums_won_any = team_scrums_won_clean + team_scrums_won_dirty
         opp_scrums_recovered = opp_plays.filter(scrum_filter & lose_filter).count()
-        total_scrums_match = plays.filter(scrum_total_filter).count()
+        total_scrums_match = team_scrums_won_clean + team_scrums_won_dirty + team_scrums_lost + opp_scrums_recovered
 
         # Desglose por 'sigue_con' para lines y scrums del equipo
         def build_breakdown(play_values_qs, normalize_outcome):

@@ -20,6 +20,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
+# Configuración de Emails
+# Se usa siempre el servidor SMTP de Gmail (tanto en local como en producción)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'noreply.dinastia.notificaciones@gmail.com'
+EMAIL_HOST_PASSWORD = 'yutfmbqoikaizvdp'
+
+DEFAULT_FROM_EMAIL = 'LaDinastia <noreply.dinastia.notificaciones@gmail.com>'
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-rj(y$$3w@t4%1cm*v6$#hzsn%^1)7b&(6^hv7a-8_8lk7vi-f=')
 

@@ -233,3 +233,78 @@ class CoachPlayerCreationForm(UserCreationForm):
             profile.team = coach_team
             profile.save()
         return user
+
+
+from .models import Invitation, Team
+
+class InvitationForm(forms.ModelForm):
+    archivo_excel = forms.FileField(
+        label="Opción Masiva: Archivo Excel con correos en Columna A",
+        required=False,
+        widget=forms.FileInput(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white', 'accept': '.xlsx'})
+    )
+    
+    team = forms.ModelChoiceField(
+        label="Equipo al que se invita (Sólo Admin)",
+        queryset=Team.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white'})
+    )
+
+    class Meta:
+        model = Invitation
+        fields = ['team', 'role', 'email']
+        widgets = {
+            'email': forms.EmailInput(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white', 'placeholder': 'usuario@ejemplo.com'}),
+            'role': forms.Select(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        self.fields['email'].required = False
+        
+        # Si NO es superuser, ocultamos el selector de equipo porque usaremos el del perfil
+        if self.user and not getattr(self.user, 'is_superuser', False):
+            self.fields['team'].widget = forms.HiddenInput()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        email = cleaned_data.get('email')
+        archivo_excel = cleaned_data.get('archivo_excel')
+        team = cleaned_data.get('team')
+
+        if not email and not archivo_excel:
+            raise forms.ValidationError("Debes ingresar un email mano a mano O subir un archivo Excel.")
+            
+        if getattr(self.user, 'is_superuser', False) and not team:
+             self.add_error('team', "Como administrador, debes seleccionar a qué equipo vas a invitar.")
+             
+        return cleaned_data
+
+class PlayerRegistrationForm(UserCreationForm):
+    first_name = forms.CharField(
+        label="Nombre", 
+        max_length=30, 
+        required=True, 
+        widget=forms.TextInput(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'})
+    )
+    last_name = forms.CharField(
+        label="Apellido", 
+        max_length=30, 
+        required=True, 
+        widget=forms.TextInput(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'})
+    )
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ('first_name', 'last_name', 'username')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields:
+            if 'class' not in self.fields[field].widget.attrs:
+                self.fields[field].widget.attrs['class'] = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'
+            if hasattr(self.fields[field], 'help_text'):
+                self.fields[field].help_text = ''

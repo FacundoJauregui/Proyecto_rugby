@@ -21,6 +21,7 @@ from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
+import uuid
 
 class Country(models.Model):
     """Catálogo de países.
@@ -357,5 +358,30 @@ class GpsMetric(models.Model):
         verbose_name_plural = "Métricas GPS"
         ordering = ['name']
 
+
+
+class Invitation(models.Model):
+    """Invitación para registrar un nuevo jugador.
+    
+    Genera un token único que el jugador debe usar para completar su registro,
+    asegurando que solo personas autorizadas puedan unirse como miembros de un equipo.
+    """
+    class InvitedRole(models.TextChoices):
+        JUGADOR = 'PLAYER', 'Jugador'
+        ENTRENADOR = 'COACH', 'Entrenador'
+
+    email = models.EmailField(verbose_name="Email del Jugador")
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="invitations", verbose_name="Equipo al que se invita")
+    role = models.CharField(max_length=10, choices=InvitedRole.choices, default=InvitedRole.JUGADOR, verbose_name="Rol a asignar")
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, db_index=True)
+    is_used = models.BooleanField(default=False, verbose_name="¿Ya fue usada?")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Generado por")
+
+    class Meta:
+        verbose_name = "Invitación"
+        verbose_name_plural = "Invitaciones"
+        ordering = ['-created_at']
+
     def __str__(self):
-        return f"{self.name} - {self.match}" 
+        return f"Invitación para {self.email} a {self.team.name} ({'Usada' if self.is_used else 'Pendiente'})" 
