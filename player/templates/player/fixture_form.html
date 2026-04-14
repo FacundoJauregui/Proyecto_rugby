@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - SportFrame{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-8">
+  <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+
+    <h1 class="text-2xl font-bold mb-6 dark:text-white">{{ title }}</h1>
+
+    <form method="post" class="space-y-5">
+      {% csrf_token %}
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <!-- Fecha -->
+        <div>
+          <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Fecha *</label>
+          {{ form.match_date }}
+          {% if form.match_date.errors %}<p class="mt-1 text-xs text-red-500">{{ form.match_date.errors.0 }}</p>{% endif %}
+        </div>
+        <!-- Hora -->
+        <div>
+          <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Hora</label>
+          {{ form.match_time }}
+        </div>
+      </div>
+
+      <!-- Local -->
+      <div>
+        <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Equipo Local *</label>
+        {{ form.home_team }}
+        {% if form.home_team.errors %}<p class="mt-1 text-xs text-red-500">{{ form.home_team.errors.0 }}</p>{% endif %}
+      </div>
+
+      <!-- Visitante -->
+      <div>
+        <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Equipo Visitante *</label>
+        {{ form.away_team }}
+        {% if form.away_team.errors %}<p class="mt-1 text-xs text-red-500">{{ form.away_team.errors.0 }}</p>{% endif %}
+      </div>
+
+      <!-- Torneo -->
+      <div>
+        <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Torneo</label>
+        {{ form.tournament }}
+      </div>
+
+      <!-- ¿Jugado? (resultado) -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Puntos Local</label>
+          {{ form.home_score }}
+        </div>
+        <div>
+          <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Puntos Visitante</label>
+          {{ form.away_score }}
+        </div>
+      </div>
+
+      <!-- Notas -->
+      <div>
+        <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Notas</label>
+        {{ form.match_notes }}
+      </div>
+
+      <!-- Acciones -->
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-6 py-2.5">
+          {{ action }}
+        </button>
+        <a href="{% url 'player:fixture' %}" class="text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium rounded-lg text-sm px-6 py-2.5">
+          Cancelar
+        </a>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<script>
+  // No se requiere lógica adicional: los scores son siempre editables.
+</script>
+{% endblock %}

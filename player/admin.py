@@ -37,10 +37,18 @@ admin.site.register(User, UserAdmin)
 
 @admin.register(Match)
 class MatchAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'video_id', 'match_date', 'tournament', 'division', 'created_at', 'plays_count', 'ver_jugadas', 'eliminar')
+    list_display = ('__str__', 'video_id', 'match_date', 'match_time', 'home_score', 'away_score', 'tournament', 'division', 'created_at', 'plays_count', 'ver_jugadas', 'eliminar')
     search_fields = ('home_team', 'away_team', 'video_id', 'tournament__name')
     list_filter = ('match_date', 'created_at', 'tournament', 'division')
-    fields = ('home_team', 'away_team', 'video_id', 'match_date', 'tournament', 'division')
+    fields = (
+        ('home_team', 'away_team'),
+        ('match_date', 'match_time'),
+        'tournament',
+        'division',
+        ('home_score', 'away_score'),
+        'match_notes',
+        'video_id',
+    )
     actions = ['delete_matches_and_plays']
 
     def plays_count(self, obj):

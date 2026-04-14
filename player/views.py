@@ -187,6 +187,18 @@ def validate_headers_flexible(fieldnames):
         return False, f"Faltan columnas obligatorias en el CSV: {', '.join(missing)}", {}
     return True, '', header_map
 
+# --- Helper: extraer marcador desde campo 'marcador_final' ---
+def _parse_score_from_marcador(marcador: str):
+    """Extrae (home_score, away_score) de un string tipo '24 - 17' o '24-17'.
+    Devuelve (None, None) si no puede parsear."""
+    if not marcador:
+        return None, None
+    m = re.match(r'^\s*(\d+)\s*-\s*(\d+)\s*$', marcador.strip())
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    return None, None
+
+
 # --- Función Auxiliar para la URL de YouTube (la dejamos como está) ---
 def get_youtube_video_id(url):
     # ... (código de la función sin cambios)
@@ -427,6 +439,16 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
                         count += 1
                     if plays_to_create:
                         Play.objects.bulk_create(plays_to_create, batch_size=1000)
+                        # Intentar extraer marcador final del último play para guardar el resultado
+                        last_marcador = next(
+                            (p.marcador_final for p in reversed(plays_to_create) if p.marcador_final),
+                            None
+                        )
+                        home, away = _parse_score_from_marcador(last_marcador)
+                        if home is not None and match.home_score is None and match.away_score is None:
+                            match.home_score = home
+                            match.away_score = away
+                            match.save(update_fields=['home_score', 'away_score'])
                         messages.success(self.request, f"Se cargaron {count} jugadas al partido.")
                     else:
                         messages.warning(self.request, "El archivo CSV no contenía jugadas válidas.")
@@ -488,6 +510,12 @@ class MatchPlayerView(LoginRequiredMixin, DetailView):
     redirect_field_name = 'next'
 
     def get(self, request, *args, **kwargs):
+        # Guard: si el partido no tiene video, redirigir al listado con mensaje
+        match_obj = self.get_object()
+        if not match_obj.video_id:
+            messages.warning(request, "Este partido aún no tiene video de análisis cargado.")
+            return redirect('player:match_list')
+
         # Exportación CSV del conjunto filtrado (sin paginar) o por selección
         if request.GET.get('export') == 'csv':
             self.object = self.get_object()
@@ -1064,6 +1092,16 @@ class MatchCSVUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                 match.plays.all().delete()  # Reemplazar jugadas existentes
                 if plays_to_create:
                     Play.objects.bulk_create(plays_to_create, batch_size=1000)
+                    # Extraer marcador final del último play para actualizar el resultado
+                    last_marcador = next(
+                        (p.marcador_final for p in reversed(plays_to_create) if p.marcador_final),
+                        None
+                    )
+                    home, away = _parse_score_from_marcador(last_marcador)
+                    if home is not None:
+                        match.home_score = home
+                        match.away_score = away
+                        match.save(update_fields=['home_score', 'away_score'])
             if count:
                 messages.success(request, f"Se actualizaron {count} jugadas para el partido.")
             else:

@@ -17,6 +17,14 @@ from .views import (
     MatchSelectionPresetUploadCSVView,
 )
 from .views_admin import AdminUserCreateView, CoachPlayerCreateView, CreateInvitationView, PlayerRegistrationView
+from .views_fixture import (
+    FixtureCalendarView,
+    FixtureEventsAPIView,
+    MatchFixtureCreateView,
+    MatchFixtureUpdateView,
+    MatchFixtureDeleteView,
+    FixtureExcelImportView,
+)
 from .views_dashboard import (
     DashboardIndexView,
     TeamStatsView,
@@ -80,4 +88,12 @@ urlpatterns = [
     
     # API endpoints para datos dinÃ¡micos del dashboard
     path('dashboard/api/<str:action>/', DashboardAPIView.as_view(), name='dashboard_api'),
+
+    # ===== FIXTURE / CALENDARIO =====
+    path('fixture/', FixtureCalendarView.as_view(), name='fixture'),
+    path('fixture/events/', FixtureEventsAPIView.as_view(), name='fixture_events'),
+    path('fixture/add/', MatchFixtureCreateView.as_view(), name='fixture_add'),
+    path('fixture/<int:pk>/edit/', MatchFixtureUpdateView.as_view(), name='fixture_edit'),
+    path('fixture/<int:pk>/delete/', MatchFixtureDeleteView.as_view(), name='fixture_delete'),
+    path('fixture/import-excel/', FixtureExcelImportView.as_view(), name='fixture_import_excel'),
 ]

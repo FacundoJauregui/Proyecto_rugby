@@ -75,6 +75,14 @@
                         </a>
                     </li>
                     <li>
+                        <a href="{% url 'player:fixture' %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 7V3M16 7V3M7 11H17M5 21H19C20.1046 21 21 20.1046 21 19V7C21 5.89543 20.1046 5 19 5H5C3.89543 5 3 5.89543 3 7V19C3 20.1046 3.89543 21 5 21Z" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="flex-1 ms-3 whitespace-nowrap">Fixture</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M4 15L4 17C4 18.6569 5.34315 20 7 20L17 20C18.6569 20 20 18.6569 20 17V15M12 16L12 4M12 16L8 12M12 16L16 12" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -135,6 +143,14 @@
                         <path d="M3 15V19M9 13V19M15 15V19M21 13V19M3 11L9 6L15 11L20.5 5.5" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         <span class="flex-1 ms-3 whitespace-nowrap">Dashboard</span>
+                    </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'player:fixture' %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 7V3M16 7V3M7 11H17M5 21H19C20.1046 21 21 20.1046 21 19V7C21 5.89543 20.1046 5 19 5H5C3.89543 5 3 5.89543 3 7V19C3 20.1046 3.89543 21 5 21Z" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="flex-1 ms-3 whitespace-nowrap">Fixture</span>
                     </a>
                     </li>
 {% if user.profile.role == 'COACH' %}

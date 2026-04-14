@@ -25,6 +25,20 @@
             <div class="text-red-500 text-xs mt-1">{{ form.match_date.errors }}</div>
         </div>
         <div>
+            <label for="{{ form.match_time.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Hora (opcional)</label>
+            {{ form.match_time }}
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label for="{{ form.home_score.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Puntos Local</label>
+                {{ form.home_score }}
+            </div>
+            <div>
+                <label for="{{ form.away_score.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Puntos Visitante</label>
+                {{ form.away_score }}
+            </div>
+        </div>
+        <div>
             <label for="{{ form.tournament.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.tournament.label }}</label>
             {{ form.tournament }}
             <div class="text-red-500 text-xs mt-1">{{ form.tournament.errors }}</div>
@@ -33,6 +47,10 @@
             <label for="{{ form.division.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.division.label }}</label>
             {{ form.division }}
             <div class="text-red-500 text-xs mt-1">{{ form.division.errors }}</div>
+        </div>
+        <div>
+            <label for="{{ form.match_notes.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Notas (opcional)</label>
+            {{ form.match_notes }}
         </div>
         <div>
             <label for="{{ form.youtube_url.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ form.youtube_url.label }}</label>

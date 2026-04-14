@@ -76,19 +76,24 @@ def get_youtube_video_id(url):
 class MatchUpdateForm(forms.ModelForm):
     youtube_url = forms.URLField(
         label="URL del Video de YouTube",
-        required=True,
+        required=False,
         widget=forms.URLInput(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'})
     )
 
     class Meta:
         model = Match
-        fields = ['home_team', 'away_team', 'match_date', 'tournament', 'division', 'youtube_url']
+        fields = ['home_team', 'away_team', 'match_date', 'match_time', 'tournament', 'division',
+                  'home_score', 'away_score', 'match_notes', 'youtube_url']
         widgets = {
             'home_team': forms.TextInput(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'}),
             'away_team': forms.TextInput(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'}),
             'match_date': forms.DateInput(attrs={'type': 'date', 'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'}),
+            'match_time': forms.TimeInput(attrs={'type': 'time', 'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'}),
             'tournament': forms.Select(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white'}),
             'division': forms.Select(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white'}),
+            'home_score': forms.NumberInput(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white', 'min': '0'}),
+            'away_score': forms.NumberInput(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white', 'min': '0'}),
+            'match_notes': forms.Textarea(attrs={'class': 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white', 'rows': 3}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -100,6 +105,8 @@ class MatchUpdateForm(forms.ModelForm):
 
     def clean_youtube_url(self):
         url = self.cleaned_data.get('youtube_url')
+        if not url:
+            return url
         video_id = get_youtube_video_id(url)
         if not video_id:
             raise forms.ValidationError("URL de YouTube no es válida.")
@@ -121,7 +128,8 @@ class MatchUpdateForm(forms.ModelForm):
     def save(self, commit=True):
         m = super().save(commit=False)
         url = self.cleaned_data.get('youtube_url')
-        m.video_id = get_youtube_video_id(url)
+        if url:
+            m.video_id = get_youtube_video_id(url)
         if commit:
             m.save()
         return m
@@ -308,3 +316,39 @@ class PlayerRegistrationForm(UserCreationForm):
                 self.fields[field].widget.attrs['class'] = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'
             if hasattr(self.fields[field], 'help_text'):
                 self.fields[field].help_text = ''
+
+
+_TW_INPUT = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white'
+_TW_SELECT = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white'
+
+
+class FixtureMatchForm(forms.ModelForm):
+    class Meta:
+        model = Match
+        fields = ['match_date', 'match_time', 'home_team', 'away_team', 'tournament',
+                  'division', 'home_score', 'away_score', 'match_notes']
+        widgets = {
+            'match_date':  forms.DateInput(attrs={'type': 'date', 'class': _TW_INPUT}),
+            'match_time':  forms.TimeInput(attrs={'type': 'time', 'class': _TW_INPUT}),
+            'home_team':   forms.TextInput(attrs={'class': _TW_INPUT, 'placeholder': 'Ej: Club Atlético'}),
+            'away_team':   forms.TextInput(attrs={'class': _TW_INPUT, 'placeholder': 'Ej: Club Rival'}),
+            'tournament':  forms.Select(attrs={'class': _TW_SELECT}),
+            'division':    forms.Select(attrs={'class': _TW_SELECT}),
+            'home_score':  forms.NumberInput(attrs={'class': _TW_INPUT, 'min': '0'}),
+            'away_score':  forms.NumberInput(attrs={'class': _TW_INPUT, 'min': '0'}),
+            'match_notes': forms.Textarea(attrs={'class': _TW_INPUT, 'rows': 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['tournament'].queryset = Tournament.objects.select_related('country').order_by('country__name', 'name', 'season')
+        self.fields['tournament'].required = False
+        self.fields['division'].required = False
+
+
+class FixtureExcelImportForm(forms.Form):
+    archivo_excel = forms.FileField(
+        label="Archivo Excel (.xlsx)",
+        help_text="Columnas requeridas: Fecha (DD/MM/YYYY), Hora (HH:MM, opcional), Local, Visitante. Opcionales: Torneo, Sede, Jugado (SI/NO), Goles Local, Goles Visitante, Notas.",
+        widget=forms.FileInput(attrs={'class': _TW_INPUT, 'accept': '.xlsx'})
+    )

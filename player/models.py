@@ -88,7 +88,8 @@ class Match(models.Model):
     # Equipo visitante. También normalizado / indexado.
     away_team = models.CharField(max_length=100, verbose_name="Equipo Visitante", db_index=True)
     # Identificador único de la fuente de video (YouTube u otro). Permite localizar el recurso.
-    video_id = models.CharField(max_length=20, unique=True, help_text="El ID único del video de YouTube")
+    # null/blank=True para partidos agendados en el fixture sin video todavía.
+    video_id = models.CharField(max_length=20, unique=True, null=True, blank=True, help_text="El ID único del video de YouTube")
     # Timestamp de creación del registro (cuando se cargó en la plataforma).
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     # Fecha real en que se disputó el partido. Indexada para filtros cronológicos.
@@ -110,6 +111,12 @@ class Match(models.Model):
         db_index=True,
         verbose_name="División"
     )
+
+    # ── Campos del fixture (partidos agendados sin video) ──
+    match_time = models.TimeField(null=True, blank=True, verbose_name="Hora")
+    home_score = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Puntos Local")
+    away_score = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Puntos Visitante")
+    match_notes = models.TextField(blank=True, verbose_name="Notas")
 
     def __str__(self):  # Representación humana en admin y logs.
         return f"{self.home_team} vs. {self.away_team}"
@@ -384,4 +391,6 @@ class Invitation(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Invitación para {self.email} a {self.team.name} ({'Usada' if self.is_used else 'Pendiente'})" 
+        return f"Invitación para {self.email} a {self.team.name} ({'Usada' if self.is_used else 'Pendiente'})"
+
+
