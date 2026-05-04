@@ -141,6 +141,9 @@ class StatsService:
     def _get_base_matches_queryset(self, include_tournament_filter: bool = True):
         """Retorna el queryset base de partidos según contexto."""
         qs = Match.objects.select_related('tournament', 'tournament__country')
+
+        # Solo partidos con video/datos cargados; los del fixture sin contenido no aportan estadísticas
+        qs = qs.filter(video_id__isnull=False).exclude(video_id='')
         
         # Filtrar por equipo
         if self._team_names:
@@ -549,6 +552,30 @@ class StatsService:
 
         scrums_won = plays_for_team.filter(scrum_jugada_filter).filter(scrum_won_result_filter).count()
         scrums_lost = plays_for_team.filter(scrum_jugada_filter).filter(scrum_lost_result_filter).count()
+
+        # Penales concedidos por zona de inicio
+        penales_by_zone_qs = plays_for_team.filter(
+            Q(jugada__iexact='PENALES_CONCEDIDOS')
+        ).exclude(zona_inicio='').values('zona_inicio').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        penales_by_zone = list(penales_by_zone_qs)
+
+        # Penales concedidos por situacion_penal
+        penales_by_situacion = list(
+            plays_for_team.filter(Q(jugada__iexact='PENALES_CONCEDIDOS'))
+            .exclude(situacion_penal='')
+            .values('situacion_penal').annotate(count=Count('id'))
+            .order_by('-count')
+        )
+
+        # Penales concedidos por tipo
+        penales_by_tipo = list(
+            plays_for_team.filter(Q(jugada__iexact='PENALES_CONCEDIDOS'))
+            .exclude(tipo='')
+            .values('tipo').annotate(count=Count('id'))
+            .order_by('-count')
+        )
         
         data = {
             'by_jugada': list(by_jugada),
@@ -567,6 +594,9 @@ class StatsService:
                 'lost': scrums_lost,
                 'total': scrums_won + scrums_lost,
             },
+            'penales_by_zone': penales_by_zone,
+            'penales_by_situacion': penales_by_situacion,
+            'penales_by_tipo': penales_by_tipo,
         }
         self._cache_set(cache_key, data, STATS_CACHE_TTL)
         return data
@@ -620,6 +650,45 @@ class StatsService:
         self._cache_set(cache_key, data, STATS_CACHE_TTL)
         return data
 
+    @staticmethod
+    def _tiempo_to_seconds(tiempo_str: str) -> float:
+        """Convierte string 'HH:MM:SS.ffffff' a segundos."""
+        if not tiempo_str:
+            return 0.0
+        try:
+            parts = tiempo_str.split(':')
+            hours = float(parts[0])
+            minutes = float(parts[1])
+            seconds = float(parts[2])
+            return hours * 3600 + minutes * 60 + seconds
+        except (IndexError, ValueError):
+            return 0.0
+
+    def _calc_net_minutes(self, match_id: int, team_name: str) -> float:
+        """
+        Calcula los minutos netos de juego del equipo en el partido.
+        Suma (fin - tiempo_as_seconds) para todas las posesiones del equipo.
+        """
+        possessions = Play.objects.filter(
+            match_id=match_id,
+            jugada='POSESION',
+            equipo__iexact=team_name,
+        ).exclude(tiempo='').values_list('fin', 'tiempo')
+
+        total_seconds = 0.0
+        for fin, tiempo in possessions:
+            tiempo_secs = self._tiempo_to_seconds(tiempo)
+            total_seconds += float(fin) - tiempo_secs
+
+        return round(total_seconds / 60, 2)
+
+    def _sum_net_seconds(self, plays_qs) -> float:
+        """Suma (fin - tiempo_as_seconds) para un queryset de jugadas."""
+        total = 0.0
+        for fin, tiempo in plays_qs.exclude(tiempo='').values_list('fin', 'tiempo'):
+            total += float(fin) - self._tiempo_to_seconds(tiempo)
+        return total
+
     def get_trend_data(self, last_n_matches: int = 10) -> List[Dict[str, Any]]:
         """
         Obtiene datos de tendencia para gráfico de línea temporal.
@@ -628,7 +697,7 @@ class StatsService:
             last_n_matches: Cantidad de partidos a incluir
             
         Returns:
-            Lista de dicts con fecha, puntajes, resultado por partido
+            Lista de dicts con fecha, minutos netos, penales por partido
         """
         cache_key = self._make_cache_key('trend', {'n': last_n_matches})
         cached = self._cache_get(cache_key)
@@ -641,10 +710,8 @@ class StatsService:
         match_list = list(matches)[-last_n_matches:]
         
         result = []
-        cumulative_wins = 0
         
         for i, match in enumerate(match_list):
-            # Usar el método que parsea marcador_final
             result_data = self._get_match_result(
                 match.id,
                 match.home_team,
@@ -653,33 +720,19 @@ class StatsService:
             
             opp_name = match.away_team if result_data['is_home'] else match.home_team
             team_name = match.home_team if result_data['is_home'] else match.away_team
-            opp_team_name = opp_name
 
-            team_tries = self._count_tries(match.id, team_name)
-            opp_tries = self._count_tries(match.id, opp_team_name)
             team_pen_conc = self._count_penalties_conceded(match.id, team_name)
-            opp_pen_conc = self._count_penalties_conceded(match.id, opp_team_name)
-            
-            if result_data['result'] == 'W':
-                cumulative_wins += 1
-                res = 1
-            elif result_data['result'] == 'L':
-                res = -1
-            else:
-                res = 0
+            opp_pen_conc = self._count_penalties_conceded(match.id, opp_name)
+            net_minutes = self._calc_net_minutes(match.id, team_name)
             
             result.append({
                 'index': i + 1,
+                'match_id': match.id,
                 'date': match.match_date.isoformat() if match.match_date else None,
                 'opponent': opp_name,
-                'team_score': result_data['team_score'],
-                'opp_score': result_data['opp_score'],
-                'team_tries': team_tries,
-                'opp_tries': opp_tries,
+                'net_minutes': net_minutes,
                 'team_penalties_conceded': team_pen_conc,
                 'opp_penalties_conceded': opp_pen_conc,
-                'result': res,  # 1=win, 0=draw, -1=loss
-                'cumulative_wins': cumulative_wins,
             })
         
         self._cache_set(cache_key, result, STATS_CACHE_TTL)
@@ -707,7 +760,10 @@ class StatsService:
         
         plays = Play.objects.filter(match=match)
         total_plays = plays.count()
-        
+
+        # Tiempos netos (fin - tiempo) sumados sobre posesiones únicamente
+        net_minutes_match = round(self._sum_net_seconds(plays.filter(jugada__iexact='POSESION')) / 60, 2)
+
         # Obtener resultado del partido usando marcador_final
         result_data = self._get_match_result(
             match.id,
@@ -722,6 +778,9 @@ class StatsService:
         # Jugadas solo del equipo analizado
         team_plays = plays.filter(equipo__iexact=team_name)
         opp_plays = plays.filter(equipo__iexact=opp_name)
+
+        net_minutes_team = round(self._sum_net_seconds(team_plays.filter(jugada__iexact='POSESION')) / 60, 2)
+        net_minutes_opp = round(self._sum_net_seconds(opp_plays.filter(jugada__iexact='POSESION')) / 60, 2)
 
         # Set pieces: lines y scrums del equipo analizado.
         # El total mostrado en el dashboard debe coincidir con las barras visibles:
@@ -877,6 +936,8 @@ class StatsService:
 
         # Posesiones por resultado de 'termina'
         possession_raw = team_plays.filter(jugada__iexact='POSESION').values('termina').annotate(count=Count('id'))
+        # Total real de posesiones del equipo (denominador correcto para el % de pelotas perdidas)
+        total_possessions_equipo = team_plays.filter(jugada__iexact='POSESION').count()
         opp_possessions_total = opp_plays.filter(jugada__iexact='POSESION').count()
         penales_contra = team_plays.filter(jugada__iexact='PENALES_CONCEDIDOS').count()
         penales_favor = opp_plays.filter(jugada__iexact='PENALES_CONCEDIDOS').count()
@@ -918,6 +979,15 @@ class StatsService:
             Q(jugada__iexact='SALIDAS') & (Q(termina__iexact='RECUPERA') | Q(termina__iexact='RECUPERADA'))
         ).count()
         salidas_totales_opp = opp_plays.filter(Q(jugada__iexact='SALIDAS')).count()
+        # Confirmación de puntos: salidas del rival que terminaron en PIERDE (nosotros confirmamos bien)
+        salidas_opp_pierde = opp_plays.filter(
+            Q(jugada__iexact='SALIDAS') & Q(resultado__iexact='PIERDE')
+        ).count()
+        # Salidas recuperadas: salidas del equipo en análisis con resultado=GANA
+        salidas_totales_team = team_plays.filter(Q(jugada__iexact='SALIDAS')).count()
+        salidas_team_gana = team_plays.filter(
+            Q(jugada__iexact='SALIDAS') & Q(resultado__iexact='GANA')
+        ).count()
 
         pelota_perdida_count = possession_buckets.get('pelota_perdida', {}).get('count', 0)
         total_non_lost_possessions = max(total_possessions - pelota_perdida_count, 0)
@@ -931,7 +1001,7 @@ class StatsService:
         # Armar lista de items incluyendo recuperadas; porcentajes sobre total general
         total_general = (
             total_possessions + balls_recovered + rucks_won + rucks_lost +
-            salidas_recuperadas + salidas_perdidas + penales_contra + penales_favor
+            salidas_team_gana + salidas_perdidas + penales_contra + penales_favor
         )
         ordered_keys = [
             'penal/fk_ec', 'penal/fk_af',
@@ -945,7 +1015,7 @@ class StatsService:
                 count = balls_recovered
                 label = 'Pelotas recuperadas'
             elif key == 'salidas_recuperadas':
-                count = salidas_recuperadas
+                count = salidas_team_gana
                 label = 'Salidas recuperadas'
             elif key == 'salidas_perdidas':
                 count = salidas_perdidas
@@ -969,7 +1039,10 @@ class StatsService:
             'total_non_lost': total_non_lost_possessions,
             'pelota_perdida_count': pelota_perdida_count,
             'items': possession_items,
-            'averages': []
+            'averages': [],
+            'net_minutes_match': net_minutes_match,
+            'net_minutes_team': net_minutes_team,
+            'net_minutes_opp': net_minutes_opp,
         }
 
         # Promedios solicitados
@@ -979,9 +1052,9 @@ class StatsService:
         possession_summary['averages'] = [
             {
                 'label': 'Pelotas perdidas',
-                'value': pct(pelota_perdida_count, total_possessions),
+                'value': pct(pelota_perdida_count, total_possessions_equipo),
                 'num': pelota_perdida_count,
-                'den': total_possessions,
+                'den': total_possessions_equipo,
             },
             {
                 'label': 'Pelotas recuperadas',
@@ -990,16 +1063,22 @@ class StatsService:
                 'den': opp_possessions_total,
             },
             {
-                'label': 'Salidas perdidas',
-                'value': pct(salidas_perdidas, salidas_totales_opp),
-                'num': salidas_perdidas,
+                'label': 'Confirmación de puntos',
+                'value': pct(salidas_opp_pierde, salidas_totales_opp),
+                'num': salidas_opp_pierde,
                 'den': salidas_totales_opp,
             },
             {
+                'label': 'Salidas recuperadas',
+                'value': pct(salidas_team_gana, salidas_totales_team),
+                'num': salidas_team_gana,
+                'den': salidas_totales_team,
+            },
+            {
                 'label': 'Rucks ganados',
-                'value': pct(rucks_won + opp_rucks_lost, rucks_won + rucks_lost + opp_rucks_won + opp_rucks_lost),
-                'num': rucks_won + opp_rucks_lost,
-                'den': rucks_won + rucks_lost + opp_rucks_won + opp_rucks_lost,
+                'value': pct(rucks_won, rucks_won + rucks_lost),
+                'num': rucks_won,
+                'den': rucks_won + rucks_lost,
             }
         ]
         
@@ -1035,6 +1114,26 @@ class StatsService:
                 'by_jugada': list(team_by_jugada),
                 'balls_recovered': balls_recovered,
             },
+            'penales_detail': {
+                'by_zone': list(
+                    team_plays.filter(jugada__iexact='PENALES_CONCEDIDOS')
+                    .exclude(zona_inicio='')
+                    .values('zona_inicio').annotate(count=Count('id'))
+                    .order_by('-count')
+                ),
+                'by_situacion': list(
+                    team_plays.filter(jugada__iexact='PENALES_CONCEDIDOS')
+                    .exclude(situacion_penal='')
+                    .values('situacion_penal').annotate(count=Count('id'))
+                    .order_by('-count')
+                ),
+                'by_tipo': list(
+                    team_plays.filter(jugada__iexact='PENALES_CONCEDIDOS')
+                    .exclude(tipo='')
+                    .values('tipo').annotate(count=Count('id'))
+                    .order_by('-count')
+                ),
+            },
             'possession': possession_summary,
             'set_pieces': {
                 'line_won_clean': team_lines_won_clean,
@@ -1053,6 +1152,337 @@ class StatsService:
             }
         }
         self._cache_set(cache_key, data, MATCH_CACHE_TTL)
+        return data
+
+    # ─────────────────────────────────────────────────────────────────
+    # Comparación rival
+    # ─────────────────────────────────────────────────────────────────
+
+    def _build_team_aggregate_stats(self, team_name: str, rival_mode: bool = False, tournament_names: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Computa estadísticas agregadas de todos los partidos para un equipo.
+
+        Si `rival_mode=True` busca TODOS los partidos del equipo en la BD
+        (sin restricción de usuario).  Si `rival_mode=False` usa los
+        partidos filtrados del usuario actual.
+        """
+        if rival_mode:
+            variants = self._get_team_variants(team_name=team_name)
+            if not variants:
+                variants = {team_name.strip().upper()}
+            rival_q = Q()
+            for v in variants:
+                rival_q |= Q(home_team__iexact=v) | Q(away_team__iexact=v)
+            matches_qs = (
+                Match.objects.filter(rival_q)
+                .filter(video_id__isnull=False)
+                .exclude(video_id='')
+            )
+            # Filtro de torneos para el rival
+            if tournament_names:
+                t_q = Q()
+                for t in tournament_names:
+                    t_norm = (t or '').strip()
+                    if t_norm:
+                        t_q |= Q(tournament__name__iexact=t_norm) | Q(tournament__short_name__iexact=t_norm)
+                if t_q:
+                    matches_qs = matches_qs.filter(t_q)
+        else:
+            variants = self._team_names
+            matches_qs = self._get_base_matches_queryset()
+
+        match_rows = list(matches_qs.values('id', 'home_team', 'away_team', 'match_date'))
+        total_matches = len(match_rows)
+
+        if total_matches == 0:
+            return {
+                'no_data': True,
+                'team_name': team_name.strip().upper() if team_name else '',
+                'total_matches': 0,
+            }
+
+        match_ids_list = [r['id'] for r in match_rows]
+
+        # Jugadas del equipo
+        plays_q = Q()
+        for v in variants:
+            plays_q |= Q(equipo__iexact=v)
+        team_plays = Play.objects.filter(match_id__in=match_ids_list).filter(plays_q)
+
+        # ── W / L / D y puntos ──────────────────────────────────────
+        wins = losses = draws = 0
+        points_for = points_against = 0
+        for m in match_rows:
+            home_upper = (m['home_team'] or '').strip().upper()
+            is_home = home_upper in {v.upper() for v in variants}
+            home_score, away_score = self._parse_marcador_final(m['id'])
+            if home_score is not None and away_score is not None:
+                t_score = home_score if is_home else away_score
+                o_score = away_score if is_home else home_score
+                points_for += t_score
+                points_against += o_score
+                if t_score > o_score:
+                    wins += 1
+                elif t_score < o_score:
+                    losses += 1
+                else:
+                    draws += 1
+
+        # ── Tries ───────────────────────────────────────────────────
+        tries_filter = Q(jugada__iexact='TRIES') | Q(jugada__icontains='TRY')
+        tries_for = team_plays.filter(tries_filter).count()
+
+        # ── Lines ───────────────────────────────────────────────────
+        line_filter = (
+            Q(jugada__iexact='LINE') | Q(jugada__iexact='LINES') | Q(jugada__icontains='LINE')
+        )
+        win_clean_filter = Q(resultado__iexact='GANA')
+        win_dirty_filter = (
+            Q(resultado__iexact='GANA SUCIO') |
+            Q(resultado__icontains='GANA SUCIO')
+        )
+        win_any_filter = win_clean_filter | win_dirty_filter
+        lose_filter = Q(resultado__iexact='PIERDE') | Q(resultado__icontains='PIERDE')
+
+        lines_won_clean = team_plays.filter(line_filter & win_clean_filter).count()
+        lines_won_dirty = team_plays.filter(line_filter & win_dirty_filter).count()
+        lines_won = lines_won_clean + lines_won_dirty
+        lines_lost = team_plays.filter(line_filter & lose_filter).count()
+        lines_total = lines_won + lines_lost
+
+        # ── Scrums ──────────────────────────────────────────────────
+        scrum_filter = Q(jugada__iexact='SCRUMS') | Q(jugada__icontains='SCRUM')
+        scrums_won_clean = team_plays.filter(scrum_filter & win_clean_filter).count()
+        scrums_won_dirty = team_plays.filter(scrum_filter & win_dirty_filter).count()
+        scrums_won = scrums_won_clean + scrums_won_dirty
+        scrums_lost = team_plays.filter(scrum_filter & lose_filter).count()
+        scrums_total = scrums_won + scrums_lost
+
+        # ── Penales concedidos ───────────────────────────────────────
+        pen_filter = Q(jugada__iexact='PENALES_CONCEDIDOS')
+        penales_total = team_plays.filter(pen_filter).count()
+        penales_by_zone = list(
+            team_plays.filter(pen_filter)
+            .exclude(zona_inicio='')
+            .values('zona_inicio').annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        penales_by_situacion = list(
+            team_plays.filter(pen_filter)
+            .exclude(situacion_penal='')
+            .values('situacion_penal').annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        penales_by_tipo = list(
+            team_plays.filter(pen_filter)
+            .exclude(tipo='')
+            .values('tipo').annotate(count=Count('id'))
+            .order_by('-count')
+        )
+
+        # ── Posesión / minutos netos ─────────────────────────────────
+        pos_plays = team_plays.filter(jugada__iexact='POSESION')
+        total_possessions = pos_plays.count()
+        net_minutes_total = round(self._sum_net_seconds(pos_plays) / 60, 2)
+        avg_net_minutes = round(net_minutes_total / total_matches, 2) if total_matches > 0 else 0.0
+        pelota_perdida = team_plays.filter(pen_filter | (Q(jugada__iexact='POSESION') & Q(termina__iexact='PELOTA_PERDIDA'))).filter(
+            Q(jugada__iexact='POSESION') & Q(termina__iexact='PELOTA_PERDIDA')
+        ).count()
+
+        def _pct(num, den):
+            return round(num / den * 100, 1) if den > 0 else 0.0
+
+        def _fmt(v):
+            """Elimina el .0 de floats que son números enteros (ej. 100.0 → 100)."""
+            if isinstance(v, float) and v == int(v):
+                return int(v)
+            return v
+
+        # Usar alias del equipo si existe, sino nombre completo en mayúsculas
+        _raw_name = team_name.strip().upper() if team_name else ''
+        try:
+            _team_obj = Team.objects.filter(name__iexact=_raw_name).only('alias').first()
+            display_name = (_team_obj.alias.strip().upper() if _team_obj and _team_obj.alias else _raw_name)
+        except Exception:
+            display_name = _raw_name
+
+        return {
+            'team_name': display_name,
+            'total_matches': total_matches,
+            'wins': wins,
+            'losses': losses,
+            'draws': draws,
+            'win_rate': _fmt(_pct(wins, total_matches)),
+            'points_for': points_for,
+            'points_against': points_against,
+            'point_diff': points_for - points_against,
+            'avg_points': _fmt(round(points_for / total_matches, 1) if total_matches > 0 else 0),
+            'tries_for': tries_for,
+            'avg_tries': _fmt(round(tries_for / total_matches, 1) if total_matches > 0 else 0),
+            'lineouts': {
+                'won': lines_won,
+                'won_clean': lines_won_clean,
+                'won_dirty': lines_won_dirty,
+                'lost': lines_lost,
+                'total': lines_total,
+                'pct': _fmt(_pct(lines_won, lines_total)),
+            },
+            'scrums': {
+                'won': scrums_won,
+                'won_clean': scrums_won_clean,
+                'won_dirty': scrums_won_dirty,
+                'lost': scrums_lost,
+                'total': scrums_total,
+                'pct': _fmt(_pct(scrums_won, scrums_total)),
+            },
+            'penales_concedidos': penales_total,
+            'avg_penales': _fmt(round(penales_total / total_matches, 1) if total_matches > 0 else 0),
+            'penales_by_zone': penales_by_zone,
+            'penales_by_situacion': penales_by_situacion,
+            'penales_by_tipo': penales_by_tipo,
+            'avg_net_minutes': _fmt(avg_net_minutes),
+            'total_possessions': total_possessions,
+            'pelota_perdida': pelota_perdida,
+            'pelota_perdida_pct': _fmt(_pct(pelota_perdida, total_possessions)),
+        }
+
+    def get_my_team_comparison_stats(self) -> Dict[str, Any]:
+        """Estadísticas agregadas del equipo del usuario para la vista de comparación."""
+        primary = next(iter(self._team_names), '')
+        cache_key = self._make_cache_key('my_comparison')
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+        data = self._build_team_aggregate_stats(primary, rival_mode=False)
+        self._cache_set(cache_key, data, STATS_CACHE_TTL)
+        return data
+
+    def get_rival_aggregate_stats(self, rival_team_name: str, tournament_names: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Estadísticas agregadas del rival (todos sus partidos en la BD)."""
+        if not rival_team_name:
+            return {'no_data': True}
+        cache_key = self._make_cache_key('rival', {'rival': rival_team_name, 'rival_tournaments': ','.join(sorted(tournament_names or []))})
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+        data = self._build_team_aggregate_stats(rival_team_name, rival_mode=True, tournament_names=tournament_names)
+        self._cache_set(cache_key, data, STATS_CACHE_TTL)
+        return data
+
+    def get_rival_available_tournaments(self, rival_team_name: str) -> List[Dict[str, Any]]:
+        """Torneos en los que el rival tiene partidos con datos."""
+        if not rival_team_name:
+            return []
+        variants = self._get_team_variants(team_name=rival_team_name)
+        if not variants:
+            variants = {rival_team_name.strip().upper()}
+        rival_q = Q()
+        for v in variants:
+            rival_q |= Q(home_team__iexact=v) | Q(away_team__iexact=v)
+        rows = (
+            Match.objects.filter(rival_q)
+            .filter(video_id__isnull=False)
+            .exclude(video_id='')
+            .exclude(tournament__isnull=True)
+            .values('tournament__name', 'tournament__short_name')
+            .distinct()
+            .order_by('tournament__name')
+        )
+        return [{'name': r['tournament__name'], 'short_name': r['tournament__short_name']} for r in rows]
+
+    def get_rival_detail_stats(self, rival_team_name: str, tournament_names: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Estadísticas detalladas del rival: lines ganados (set/tiro/sigue_con) y posesion fases/eficiencia."""
+        if not rival_team_name:
+            return {'no_data': True}
+        cache_key = self._make_cache_key('rival_detail', {'rival': rival_team_name, 'rival_tournaments': ','.join(sorted(tournament_names or []))})
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        variants = self._get_team_variants(team_name=rival_team_name)
+        if not variants:
+            variants = {rival_team_name.strip().upper()}
+
+        rival_q = Q()
+        for v in variants:
+            rival_q |= Q(home_team__iexact=v) | Q(away_team__iexact=v)
+        matches_qs = (
+            Match.objects.filter(rival_q)
+            .filter(video_id__isnull=False)
+            .exclude(video_id='')
+        )
+        if tournament_names:
+            t_q = Q()
+            for t in tournament_names:
+                t_norm = (t or '').strip()
+                if t_norm:
+                    t_q |= Q(tournament__name__iexact=t_norm) | Q(tournament__short_name__iexact=t_norm)
+            if t_q:
+                matches_qs = matches_qs.filter(t_q)
+
+        match_ids = list(matches_qs.values_list('id', flat=True))
+        total_matches = len(match_ids)
+        if total_matches == 0:
+            return {'no_data': True, 'team_name': rival_team_name.strip().upper()}
+
+        plays_q = Q()
+        for v in variants:
+            plays_q |= Q(equipo__iexact=v)
+        team_plays = Play.objects.filter(match_id__in=match_ids).filter(plays_q)
+
+        # ── Lines ganados (GANA + GANA SUCIO) por set / tiro / sigue_con ───
+        line_filter = Q(jugada__iexact='LINE') | Q(jugada__iexact='LINES') | Q(jugada__icontains='LINE')
+        win_filter = (
+            Q(resultado__iexact='GANA') |
+            Q(resultado__iexact='GANA SUCIO') |
+            Q(resultado__icontains='GANA SUCIO')
+        )
+        won_lines = team_plays.filter(line_filter & win_filter)
+
+        lines_by_set = list(
+            won_lines.exclude(set='').values('set').annotate(count=Count('id')).order_by('-count')
+        )
+        lines_by_tiro = list(
+            won_lines.exclude(tiro='').values('tiro').annotate(count=Count('id')).order_by('-count')
+        )
+        lines_by_sigue_con = list(
+            won_lines.exclude(sigue_con='').values('sigue_con').annotate(count=Count('id')).order_by('-count')
+        )
+
+        # ── Posesión: distribución de fases (conteo agregado por valor de fases) ─
+        pos_plays = team_plays.filter(jugada__iexact='POSESION')
+        total_pos_all = pos_plays.count()
+
+        # Conteo por valor exacto de fases (1, 2, ... N; excluye fases=0)
+        raw_phases = list(
+            pos_plays.exclude(fases='').exclude(fases='0')
+            .values('fases').annotate(count=Count('id'))
+        )
+        # Ordenar numéricamente, ignorando valores no enteros
+        def _safe_int(v):
+            try: return int(v)
+            except: return 9999
+        raw_phases.sort(key=lambda x: _safe_int(x['fases']))
+        phases_chart = [{'fases': r['fases'], 'count': r['count']} for r in raw_phases]
+
+        # ── Eficiencia de posesión: % puntos vs % pelota perdida (agregado) ─
+        pts_total = pos_plays.filter(termina_en__iexact='PUNTOS').count()
+        lost_total = pos_plays.filter(termina_en__iexact='PELOTA_PERDIDA').count()
+        efficiency_aggregated = {
+            'pct_puntos': round(pts_total / total_pos_all * 100) if total_pos_all > 0 else 0,
+            'pct_perdida': round(lost_total / total_pos_all * 100) if total_pos_all > 0 else 0,
+            'total': total_pos_all,
+        }
+
+        data = {
+            'team_name': rival_team_name.strip().upper(),
+            'total_matches': total_matches,
+            'lines_by_set': lines_by_set,
+            'lines_by_tiro': lines_by_tiro,
+            'lines_by_sigue_con': lines_by_sigue_con,
+            'phases_chart': phases_chart,
+            'efficiency_aggregated': efficiency_aggregated,
+        }
+        self._cache_set(cache_key, data, STATS_CACHE_TTL)
         return data
 
     def compare_matches(self, match_ids: List[int]) -> Dict[str, Any]:

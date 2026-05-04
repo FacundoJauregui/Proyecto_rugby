@@ -97,16 +97,16 @@
     <!-- KPIs específicos -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
-            <p class="text-sm text-gray-500 dark:text-gray-400">Tries convertidos / sin convertir</p>
-            <p class="text-3xl font-bold text-white">{{ match_stats.team_stats.tries_converted }} / {{ match_stats.team_stats.tries_unconverted }}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Tries Convertidos - Sin Convertir</p>
+            <p class="text-3xl font-bold text-white">{{ match_stats.team_stats.tries_converted }} - {{ match_stats.team_stats.tries_unconverted }}</p>
         </div>
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
-            <p class="text-sm text-gray-500 dark:text-gray-400">Penales exitosos / penales totales</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Penales Exitosos - Penales Totales</p>
             <p class="text-3xl font-bold text-white">{{ match_stats.team_stats.penales_goal_success }} / {{ match_stats.team_stats.penales_goal_total }}</p>
         </div>
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-center">
-            <p class="text-sm text-gray-500 dark:text-gray-400">Tarjetas amarillas / rojas</p>
-            <p class="text-3xl font-bold text-white">{{ match_stats.team_stats.yellow_cards }} / {{ match_stats.team_stats.red_cards }}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Tarjetas Amarillas - Tarjetas Rojas</p>
+            <p class="text-3xl font-bold text-white">{{ match_stats.team_stats.yellow_cards }} - {{ match_stats.team_stats.red_cards }}</p>
         </div>
     </div>
 
@@ -148,6 +148,21 @@
                     </li>
                     {% endfor %}
                 </ul>
+                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                    <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tiempos netos</p>
+                    <div class="flex items-center justify-between text-base text-gray-700 dark:text-gray-300">
+                        <span>Partido</span>
+                        <span class="font-semibold">{{ match_stats.possession.net_minutes_match }} min</span>
+                    </div>
+                    <div class="flex items-center justify-between text-base text-gray-700 dark:text-gray-300">
+                        <span>{{ match_stats.team_name }}</span>
+                        <span class="font-semibold">{{ match_stats.possession.net_minutes_team }} min</span>
+                    </div>
+                    <div class="flex items-center justify-between text-base text-gray-700 dark:text-gray-300">
+                        <span>{{ match_stats.opp_name }}</span>
+                        <span class="font-semibold">{{ match_stats.possession.net_minutes_opp }} min</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -161,6 +176,25 @@
             </h3>
             <div class="h-64">
                 <canvas id="lostZonaChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Penales concedidos: zona / situación / tipo -->
+    <div id="penales-detalle" class="grid grid-cols-1 gap-6 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white" id="msPenTitle">Penales Concedidos por Zona</h3>
+                <div class="flex gap-2">
+                    <button id="msBtnZone"     onclick="switchMsPen('zone')"     class="px-3 py-1 text-sm font-medium rounded-lg border bg-blue-600 text-white border-blue-600">Por zona</button>
+                    <button id="msBtnSituacion" onclick="switchMsPen('situacion')" class="px-3 py-1 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">Por situaci&oacute;n</button>
+                    <button id="msBtnTipo"     onclick="switchMsPen('tipo')"     class="px-3 py-1 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">Por tipo</button>
+                </div>
+            </div>
+            <div class="h-64">
+                <canvas id="msPenZoneChart"></canvas>
+                <canvas id="msPenSituacionChart" style="display:none"></canvas>
+                <canvas id="msPenTipoChart"     style="display:none"></canvas>
             </div>
         </div>
     </div>
@@ -283,6 +317,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const textColor = isDarkMode ? '#E5E7EB' : '#374151';
     const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
     Chart.defaults.color = textColor;
+    Chart.defaults.onHover = (evt, elements) => {
+        if (evt.native && evt.native.target) {
+            evt.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+        }
+    };
+    Chart.defaults.plugins.legend.onHover = (evt) => {
+        if (evt.native && evt.native.target) evt.native.target.style.cursor = 'pointer';
+    };
+    Chart.defaults.plugins.legend.onLeave = (evt) => {
+        if (evt.native && evt.native.target) evt.native.target.style.cursor = 'default';
+    };
     Chart.register(ChartDataLabels);
     
     const blueColors = ['#3B82F6', '#60A5FA', '#93C5FD', '#BFDBFE', '#DBEAFE', '#2563EB', '#1D4ED8'];
@@ -658,7 +703,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: 'Pelotas perdidas',
                     data: matchStats.team_stats.lost_by_zone.map(d => d.count),
-                    backgroundColor: '#EF4444'
+                    backgroundColor: 'rgba(59,130,246,0.75)',
+                    borderColor: '#3B82F6',
+                    borderWidth: 1
                 }]
             },
             options: {
@@ -672,6 +719,63 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Penales concedidos: zona / situacion / tipo
+    const penDet = matchStats.penales_detail || {};
+    const ZONA_ORDER = ['ROJA', 'NARANJA', 'AMARILLA', 'VERDE'];
+    function buildMsPenChart(canvasId, data, keyField) {
+        if (!data || data.length === 0) return;
+        let sorted = data;
+        if (keyField === 'zona_inicio') {
+            sorted = [...data].sort((a, b) => {
+                const ai = ZONA_ORDER.indexOf((a[keyField] || '').toUpperCase());
+                const bi = ZONA_ORDER.indexOf((b[keyField] || '').toUpperCase());
+                return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+        }
+        new Chart(document.getElementById(canvasId).getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: sorted.map(d => d[keyField]),
+                datasets: [{ label: 'Penales concedidos', data: sorted.map(d => d.count),
+                    backgroundColor: 'rgba(59,130,246,0.75)',
+                    borderColor: '#3B82F6', borderWidth: 1 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: gridColor } },
+                    x: { grid: { color: gridColor } }
+                }
+            }
+        });
+    }
+    buildMsPenChart('msPenZoneChart',     penDet.by_zone      || [], 'zona_inicio');
+    buildMsPenChart('msPenSituacionChart', penDet.by_situacion || [], 'situacion_penal');
+    buildMsPenChart('msPenTipoChart',      penDet.by_tipo      || [], 'tipo');
+
+    window.switchMsPen = function(type) {
+        const map = {
+            zone:     { canvas: 'msPenZoneChart',     btn: 'msBtnZone',     title: 'Penales Concedidos por Zona' },
+            situacion:{ canvas: 'msPenSituacionChart', btn: 'msBtnSituacion', title: 'Penales Concedidos por Situaci\u00f3n' },
+            tipo:     { canvas: 'msPenTipoChart',      btn: 'msBtnTipo',     title: 'Penales Concedidos por Tipo' },
+        };
+        const activeClass   = ['bg-blue-600', 'text-white', 'border-blue-600'];
+        const inactiveClass = ['bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300', 'border-gray-300', 'dark:border-gray-600'];
+        Object.keys(map).forEach(k => {
+            const c = document.getElementById(map[k].canvas);
+            const b = document.getElementById(map[k].btn);
+            if (k === type) {
+                c.style.display = '';
+                b.classList.add(...activeClass); b.classList.remove(...inactiveClass);
+            } else {
+                c.style.display = 'none';
+                b.classList.add(...inactiveClass); b.classList.remove(...activeClass);
+            }
+        });
+        document.getElementById('msPenTitle').textContent = map[type].title;
+    };
     
 });
 </script>

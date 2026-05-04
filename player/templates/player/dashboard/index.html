@@ -121,6 +121,61 @@
     </div>
     {% else %}
 
+    <!-- ===== PRÓXIMO PARTIDO ===== -->
+    {% if next_match %}
+    <div class="mb-6 rounded-xl border border-blue-400/50 bg-blue-600 shadow-lg p-5">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+            <!-- Info partido -->
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold uppercase tracking-widest text-blue-100 mb-1">Próximo partido</p>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span class="text-xl font-bold text-white">{{ next_match_my_team }}</span>
+                    <span class="text-blue-200 font-semibold text-lg">vs</span>
+                    <span class="text-xl font-bold text-white">{{ next_match_rival }}</span>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-3 text-sm text-blue-100">
+                    {% if next_match.match_date %}
+                    <span class="inline-flex items-center gap-1">
+                        <svg class="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        {{ next_match.match_date|date:"d/m/Y" }}
+                        {% if next_match.match_time %} · {{ next_match.match_time|time:"H:i" }}{% endif %}
+                    </span>
+                    {% endif %}
+                    {% if next_match.tournament %}
+                    <span class="inline-flex items-center gap-1 font-medium text-white">
+                        <svg class="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                        </svg>
+                        {% if next_match.tournament.short_name %}{{ next_match.tournament.short_name }}{% else %}{{ next_match.tournament.name }}{% endif %}
+                        {% if next_match.tournament.season %} {{ next_match.tournament.season }}{% endif %}
+                    </span>
+                    {% endif %}
+                    {% if next_match.division %}
+                    <span class="inline-flex items-center gap-1 text-blue-200">
+                        {{ next_match.get_division_display }}
+                    </span>
+                    {% endif %}
+                </div>
+                {% if next_match.match_notes %}
+                <p class="mt-2 text-xs text-blue-200 italic">{{ next_match.match_notes }}</p>
+                {% endif %}
+            </div>
+            <!-- Botón comparación -->
+            <div class="flex-shrink-0 self-center">
+                <a href="{% url 'player:dashboard_rival_compare' %}{% if selected_team %}?team={{ selected_team|urlencode }}{% endif %}"
+                   class="inline-flex items-center gap-2 text-sm font-semibold text-white border-2 border-white/60 hover:border-white hover:bg-white/20 rounded-xl px-4 py-2.5 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    Ver comparación vs {{ next_match_rival }}
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- KPIs Principales -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <!-- Total Partidos -->
@@ -242,7 +297,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <!-- Gráfico de Tendencia -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tendencia de Resultados</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Minutos Netos de Juego</h3>
             <div class="h-64">
                 <canvas id="trendChart"></canvas>
             </div>
@@ -259,7 +314,10 @@
         <!-- Gráfico de Penales Concedidos por Partido -->
         <div class="grid grid-cols-1 gap-6 mb-6">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Penales Concedidos por Partido</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Penales Concedidos por Partido</h3>
+                    <span class="text-xs text-gray-400 dark:text-gray-500 italic">Hacé clic en un partido para ver el detalle</span>
+                </div>
                 <div class="h-64">
                     <canvas id="penaltiesTrendChart"></canvas>
                 </div>
@@ -354,8 +412,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
     
     Chart.defaults.color = textColor;
-    
-    // Gráfico de Tendencia
+
+    // Cursor pointer en todos los gráficos al pasar sobre elementos interactivos
+    Chart.defaults.onHover = (evt, elements) => {
+        if (evt.native && evt.native.target) {
+            evt.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+        }
+    };
+    Chart.defaults.plugins.legend.onHover = (evt) => {
+        if (evt.native && evt.native.target) evt.native.target.style.cursor = 'pointer';
+    };
+    Chart.defaults.plugins.legend.onLeave = (evt) => {
+        if (evt.native && evt.native.target) evt.native.target.style.cursor = 'default';
+    };
+
+    // Gráfico de Minutos Netos de Juego
     if (trendData.length > 0) {
         const trendCtx = document.getElementById('trendChart').getContext('2d');
         new Chart(trendCtx, {
@@ -364,18 +435,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 labels: trendData.map(d => d.opponent ? `vs ${d.opponent.substring(0, 10)}` : `#${d.index}`),
                 datasets: [
                     {
-                        label: 'Puntos Propios',
-                        data: trendData.map(d => d.team_score),
+                        label: 'Min. netos propios',
+                        data: trendData.map(d => d.net_minutes),
                         borderColor: '#10B981',
                         backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                        tension: 0.3,
-                        fill: true
-                    },
-                    {
-                        label: 'Puntos Rival',
-                        data: trendData.map(d => d.opp_score),
-                        borderColor: '#EF4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
                         tension: 0.3,
                         fill: true
                     }
@@ -385,24 +448,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        position: 'top',
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y} min`
+                        }
                     }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        grid: { color: gridColor }
+                        grid: { color: gridColor },
+                        ticks: { callback: v => v + ' min' }
                     },
-                    x: {
-                        grid: { color: gridColor }
-                    }
+                    x: { grid: { color: gridColor } }
                 }
             }
         });
     }
         // Gráfico de Penales Concedidos por Partido (línea doble)
         if (trendData.length > 0) {
+            const matchDetailUrlTpl = "{% url 'player:dashboard_match' pk=999999 %}".replace('999999', '{id}');
             const penCtx = document.getElementById('penaltiesTrendChart').getContext('2d');
             new Chart(penCtx, {
                 type: 'line',
@@ -430,24 +496,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const idx = elements[0].index;
+                            const matchId = trendData[idx].match_id;
+                            if (matchId) window.location.href = matchDetailUrlTpl.replace('{id}', matchId) + '#penales-detalle';
+                        }
+                    },
+                    onHover: (evt, elements) => {
+                        evt.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+                    },
                     plugins: {
-                        legend: {
-                            position: 'top',
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                afterTitle: () => 'Clic para ver detalle de penales'
+                            }
                         }
                     },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: gridColor }
-                        },
-                        x: {
-                            grid: { color: gridColor }
-                        }
+                        y: { beginAtZero: true, grid: { color: gridColor } },
+                        x: { grid: { color: gridColor } }
                     }
                 }
             });
         }
-    
+
     // Gráfico de Lines / Scrums ganados vs perdidos
     const lineScrumTotal = (lineData.won || 0) + (lineData.lost || 0) + (scrumData.won || 0) + (scrumData.lost || 0);
     if (lineScrumTotal > 0) {

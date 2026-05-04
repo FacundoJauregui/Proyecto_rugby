@@ -1,0 +1,717 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Comparación vs Rival - LA DINASTIA{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+<div class="max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <nav class="flex mb-2" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 text-sm">
+                    <li><a href="{% url 'player:dashboard' %}{% if selected_team %}?team={{ selected_team|urlencode }}{% endif %}"
+                           class="text-gray-500 dark:text-gray-400 hover:text-blue-600">Dashboard</a></li>
+                    <li><span class="mx-1 text-gray-400">/</span></li>
+                    <li class="text-gray-700 dark:text-gray-300">Comparación vs Rival</li>
+                </ol>
+            </nav>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Comparación vs Próximo Rival</h1>
+            <p class="text-gray-600 dark:text-gray-400">Estadísticas acumuladas de todos los partidos</p>
+        </div>
+        <a href="{% url 'player:dashboard' %}{% if selected_team %}?team={{ selected_team|urlencode }}{% endif %}"
+           class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+        </a>
+    </div>
+
+    {% if no_teams_assigned %}
+    <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+        <p class="text-yellow-800 dark:text-yellow-200">No tenés equipos asignados. Contactá al administrador.</p>
+    </div>
+    {% else %}
+
+    <!-- Selector de rival + filtros -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <form method="GET">
+
+            {% if is_admin %}
+            <div class="mb-4">
+                <label class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">Mi equipo</label>
+                <select name="team"
+                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 w-full max-w-xs p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">-- Seleccionar --</option>
+                    {% for t in user_teams %}
+                    <option value="{{ t }}" {% if t == selected_team %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+
+                <!-- Filtros MI EQUIPO -->
+                <div class="border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <p class="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-2">
+                        Mi equipo{% if selected_team %}: {{ selected_team }}{% endif %}
+                    </p>
+                    {% if available_tournaments %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Torneos</p>
+                    <div class="flex flex-wrap gap-2">
+                        {% for t in available_tournaments %}
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" name="tournament" value="{{ t.name }}"
+                                   {% if t.name in selected_tournaments %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                            <span class="ml-1.5 text-sm text-gray-900 dark:text-gray-300">
+                                {% if t.short_name %}{{ t.short_name }}{% else %}{{ t.name }}{% endif %}
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-gray-400 dark:text-gray-500 italic">Sin torneos disponibles</p>
+                    {% endif %}
+                </div>
+
+                <!-- Filtros RIVAL -->
+                <div class="border border-red-200 dark:border-red-800 rounded-lg p-3">
+                    <p class="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">
+                        Rival
+                        {% if next_match %}
+                        <span class="ml-1 text-xs font-normal text-gray-400">(auto: próximo partido {{ next_match.match_date }})</span>
+                        {% endif %}
+                    </p>
+                    <div class="mb-2">
+                        <select name="rival"
+                            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-red-500 focus:border-red-500 w-full p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="">-- Auto (próximo partido) --</option>
+                            {% for r in all_rivals %}
+                            <option value="{{ r }}" {% if r|upper == rival_name|upper %}selected{% endif %}>{{ r }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% if rival_available_tournaments %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Torneos del rival</p>
+                    <div class="flex flex-wrap gap-2">
+                        {% for t in rival_available_tournaments %}
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" name="rival_tournament" value="{{ t.name }}"
+                                   {% if t.name in rival_tournaments %}checked{% endif %}
+                                   class="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600">
+                            <span class="ml-1.5 text-sm text-gray-900 dark:text-gray-300">
+                                {% if t.short_name %}{{ t.short_name }}{% else %}{{ t.name }}{% endif %}
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% elif rival_name %}
+                    <p class="text-xs text-gray-400 dark:text-gray-500 italic">Sin torneos disponibles para este rival</p>
+                    {% else %}
+                    <p class="text-xs text-gray-400 dark:text-gray-500 italic">Seleccioná un rival para filtrar por torneo</p>
+                    {% endif %}
+                </div>
+
+            </div>
+
+            <button type="submit"
+                class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-blue-600 dark:hover:bg-blue-700">
+                Comparar
+            </button>
+        </form>
+    </div>
+
+    {% if not rival_name %}
+    <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 text-center">
+        <p class="text-blue-800 dark:text-blue-200">No hay próximo partido agendado. Seleccioná un rival manualmente.</p>
+    </div>
+    {% elif rival_stats.no_data %}
+    <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 text-center">
+        <p class="text-yellow-800 dark:text-yellow-200">No se encontraron partidos con datos para <strong>{{ rival_name }}</strong>.</p>
+    </div>
+    {% else %}
+
+    <!-- Tabs de navegación -->
+    <div class="flex gap-2 mb-6">
+        <button id="tabBtnComparacion" onclick="switchTab('comparacion')"
+            class="px-4 py-2 text-sm font-medium rounded-lg border bg-blue-600 text-white border-blue-600">
+            Comparaci&oacute;n
+        </button>
+        <button id="tabBtnRival" onclick="switchTab('rival')"
+            class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">
+            Datos del Rival
+        </button>
+    </div>
+
+    <div id="tab-comparacion">
+    <!-- Encabezado de columnas -->
+    <div class="grid grid-cols-3 gap-4 mb-4">
+        <div class="text-right">
+            <span class="text-xl font-bold text-blue-600 dark:text-blue-400">{{ my_stats.team_name }}</span>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ my_stats.total_matches }} partido{{ my_stats.total_matches|pluralize }} analizados</p>
+        </div>
+        <div class="text-center text-gray-400 dark:text-gray-500 self-center font-bold text-lg">VS</div>
+        <div class="text-left">
+            <span class="text-xl font-bold text-red-600 dark:text-red-400">{{ rival_stats.team_name }}</span>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ rival_stats.total_matches }} partido{{ rival_stats.total_matches|pluralize }} analizados</p>
+        </div>
+    </div>
+
+    <!-- ── KPI Cards ── -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+        <!-- Win rate -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col items-center text-center gap-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400">% Victorias</p>
+            <div class="flex items-center justify-center gap-3 w-full">
+                <span class="text-2xl font-bold text-blue-600 dark:text-blue-400 flex-1 text-right">{{ my_stats.win_rate }}%</span>
+                <span class="text-gray-400 text-xs font-semibold">vs</span>
+                <span class="text-2xl font-bold text-red-600 dark:text-red-400 flex-1 text-left">{{ rival_stats.win_rate }}%</span>
+            </div>
+            <div class="flex items-center justify-center gap-3 w-full text-xs text-gray-500 dark:text-gray-400">
+                <span class="flex-1 text-right">{{ my_stats.wins }}V-{{ my_stats.losses }}D-{{ my_stats.draws }}E</span>
+                <span class="w-4"></span>
+                <span class="flex-1 text-left">{{ rival_stats.wins }}V-{{ rival_stats.losses }}D-{{ rival_stats.draws }}E</span>
+            </div>
+        </div>
+
+        <!-- Puntos -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col items-center text-center gap-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Pts anotados</p>
+            <div class="flex items-center justify-center gap-3 w-full">
+                <span class="text-2xl font-bold text-blue-600 dark:text-blue-400 flex-1 text-right">{{ my_stats.avg_points }}</span>
+                <span class="text-gray-400 text-xs font-semibold">vs</span>
+                <span class="text-2xl font-bold text-red-600 dark:text-red-400 flex-1 text-left">{{ rival_stats.avg_points }}</span>
+            </div>
+        </div>
+
+        <!-- Tries -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col items-center text-center gap-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Tries</p>
+            <div class="flex items-center justify-center gap-3 w-full">
+                <span class="text-2xl font-bold text-blue-600 dark:text-blue-400 flex-1 text-right">{{ my_stats.avg_tries }}</span>
+                <span class="text-gray-400 text-xs font-semibold">vs</span>
+                <span class="text-2xl font-bold text-red-600 dark:text-red-400 flex-1 text-left">{{ rival_stats.avg_tries }}</span>
+            </div>
+        </div>
+
+        <!-- Lines % -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col items-center text-center gap-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Lines ganados</p>
+            <div class="flex items-center justify-center gap-3 w-full">
+                <span class="text-2xl font-bold text-blue-600 dark:text-blue-400 flex-1 text-right">{{ my_stats.lineouts.pct }}%</span>
+                <span class="text-gray-400 text-xs font-semibold">vs</span>
+                <span class="text-2xl font-bold text-red-600 dark:text-red-400 flex-1 text-left">{{ rival_stats.lineouts.pct }}%</span>
+            </div>
+            <div class="flex items-center justify-center gap-3 w-full text-xs text-gray-500 dark:text-gray-400">
+                <span class="flex-1 text-right">{{ my_stats.lineouts.won }}/{{ my_stats.lineouts.total }}</span>
+                <span class="w-4"></span>
+                <span class="flex-1 text-left">{{ rival_stats.lineouts.won }}/{{ rival_stats.lineouts.total }}</span>
+            </div>
+        </div>
+
+        <!-- Scrums % -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col items-center text-center gap-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Scrums ganados</p>
+            <div class="flex items-center justify-center gap-3 w-full">
+                <span class="text-2xl font-bold text-blue-600 dark:text-blue-400 flex-1 text-right">{{ my_stats.scrums.pct }}%</span>
+                <span class="text-gray-400 text-xs font-semibold">vs</span>
+                <span class="text-2xl font-bold text-red-600 dark:text-red-400 flex-1 text-left">{{ rival_stats.scrums.pct }}%</span>
+            </div>
+            <div class="flex items-center justify-center gap-3 w-full text-xs text-gray-500 dark:text-gray-400">
+                <span class="flex-1 text-right">{{ my_stats.scrums.won }}/{{ my_stats.scrums.total }}</span>
+                <span class="w-4"></span>
+                <span class="flex-1 text-left">{{ rival_stats.scrums.won }}/{{ rival_stats.scrums.total }}</span>
+            </div>
+        </div>
+
+        <!-- Penales concedidos -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col items-center text-center gap-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Penales concedidos</p>
+            <div class="flex items-center justify-center gap-3 w-full">
+                <span class="text-2xl font-bold text-blue-600 dark:text-blue-400 flex-1 text-right">{{ my_stats.penales_concedidos }}</span>
+                <span class="text-gray-400 text-xs font-semibold">vs</span>
+                <span class="text-2xl font-bold text-red-600 dark:text-red-400 flex-1 text-left">{{ rival_stats.penales_concedidos }}</span>
+            </div>
+        </div>
+
+        <!-- Minutos netos -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col items-center text-center gap-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Min. netos posesión</p>
+            <div class="flex items-center justify-center gap-3 w-full">
+                <span class="text-2xl font-bold text-blue-600 dark:text-blue-400 flex-1 text-right">{{ my_stats.avg_net_minutes }}'</span>
+                <span class="text-gray-400 text-xs font-semibold">vs</span>
+                <span class="text-2xl font-bold text-red-600 dark:text-red-400 flex-1 text-left">{{ rival_stats.avg_net_minutes }}'</span>
+            </div>
+        </div>
+
+        <!-- Pelota perdida -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col items-center text-center gap-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Pelota perdida</p>
+            <div class="flex items-center justify-center gap-3 w-full">
+                <span class="text-2xl font-bold text-blue-600 dark:text-blue-400 flex-1 text-right">{{ my_stats.pelota_perdida_pct }}%</span>
+                <span class="text-gray-400 text-xs font-semibold">vs</span>
+                <span class="text-2xl font-bold text-red-600 dark:text-red-400 flex-1 text-left">{{ rival_stats.pelota_perdida_pct }}%</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── Gráficos ── -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+
+        <!-- Lines -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-purple-700 dark:text-purple-400 text-center mb-3">Lines Ganados / Perdidos</h3>
+            <div class="h-64">
+                <canvas id="linesChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Scrums -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold text-purple-700 dark:text-purple-400 text-center mb-3">Scrums Ganados / Perdidos</h3>
+            <div class="h-64">
+                <canvas id="scrumsChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Penales concedidos: cantidad / zona / situación / tipo -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h3 class="text-lg font-semibold text-purple-700 dark:text-purple-400 text-center" id="rcPenTitle">Penales Concedidos por Zona</h3>
+            <div class="flex gap-2 flex-wrap">
+                <button id="rcBtnCantidad"  onclick="switchRcPen('cantidad')"  class="px-3 py-1 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">Cantidad</button>
+                <button id="rcBtnZona"      onclick="switchRcPen('zona')"      class="px-3 py-1 text-sm font-medium rounded-lg border bg-blue-600 text-white border-blue-600">Por zona</button>
+                <button id="rcBtnSituacion" onclick="switchRcPen('situacion')" class="px-3 py-1 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">Por situaci&oacute;n</button>
+                <button id="rcBtnTipo"      onclick="switchRcPen('tipo')"      class="px-3 py-1 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">Por tipo</button>
+            </div>
+        </div>
+        <!-- Panel: Cantidad -->
+        <div id="rcPenCantidadPanel" style="display:none" class="py-6">
+            <div class="flex items-center justify-center gap-12">
+                <div class="text-center">
+                    <p class="text-xs text-blue-500 dark:text-blue-400 mb-1">{{ my_stats.team_name }}</p>
+                    <p class="text-5xl font-bold text-blue-600 dark:text-blue-400">{{ my_stats.penales_concedidos }}</p>
+                </div>
+                <div class="text-2xl text-gray-400 font-semibold">vs</div>
+                <div class="text-center">
+                    <p class="text-xs text-red-500 dark:text-red-400 mb-1">{{ rival_stats.team_name }}</p>
+                    <p class="text-5xl font-bold text-red-600 dark:text-red-400">{{ rival_stats.penales_concedidos }}</p>
+                </div>
+            </div>
+        </div>
+        <!-- Panel: Gráficos -->
+        <div id="rcPenChartPanel" class="h-64">
+            <canvas id="penZonaChart"></canvas>
+            <canvas id="penSituacionChart" style="display:none"></canvas>
+            <canvas id="penTipoChart"      style="display:none"></canvas>
+        </div>
+    </div>
+
+    </div>{# /tab-comparacion #}
+
+    <!-- ═══════════════ TAB: DATOS DEL RIVAL ═══════════════ -->
+    <div id="tab-rival" style="display:none">
+
+    {% if rival_detail.no_data %}
+    <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 text-center">
+        <p class="text-yellow-800 dark:text-yellow-200">Sin datos detallados para <strong>{{ rival_name }}</strong>.</p>
+    </div>
+    {% else %}
+
+    <h2 class="text-xl font-bold text-red-600 dark:text-red-400 mb-4">{{ rival_stats.team_name }} — Detalle</h2>
+
+    <!-- Lines ganados: set / tiro / sigue con -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h3 class="text-lg font-semibold text-purple-700 dark:text-purple-400 text-center" id="linesDetailTitle">Lines Ganados por Set</h3>
+            <div class="flex gap-2 flex-wrap">
+                <button id="ldbBtnSet"      onclick="switchLinesDetail('set')"      class="px-3 py-1 text-sm font-medium rounded-lg border bg-red-600 text-white border-red-600">Por Set</button>
+                <button id="ldbBtnTiro"     onclick="switchLinesDetail('tiro')"     class="px-3 py-1 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">Por Tiro</button>
+                <button id="ldbBtnSigueCon" onclick="switchLinesDetail('sigue_con')" class="px-3 py-1 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">Sigue Con</button>
+            </div>
+        </div>
+        <div class="h-64">
+            <canvas id="linesSetChart"></canvas>
+            <canvas id="linesTiroChart"    style="display:none"></canvas>
+            <canvas id="linesSigueChart"   style="display:none"></canvas>
+        </div>
+    </div>
+
+    <!-- Posesión: fases y eficiencia -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <h3 class="text-xl font-bold text-center text-purple-600 dark:text-purple-400 mb-4">POSESI&Oacute;N &mdash; Fases y Eficiencia</h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+                <p class="text-sm text-center text-gray-600 dark:text-gray-400 mb-2">Distribuci&oacute;n de fases por posesi&oacute;n</p>
+                <div class="h-64"><canvas id="phasesChart"></canvas></div>
+            </div>
+            <div>
+                <p class="text-sm text-center text-gray-600 dark:text-gray-400 mb-2">Eficiencia de posesi&oacute;n &mdash; puntos vs perdidas</p>
+                <div class="h-64"><canvas id="efficiencyChart"></canvas></div>
+            </div>
+        </div>
+        <p class="text-xs text-center text-gray-500 dark:text-gray-400 mt-3">
+            Izq: cu&aacute;ntas posesiones cayeron en cada grupo de fases (0/1-2/3-5/6+). Der: qu&eacute; % de posesiones terminaron en puntos vs pelota perdida.
+        </p>
+    </div>
+
+    {% endif %}{# rival_detail #}
+    </div>{# /tab-rival #}
+
+    {% endif %}{# rival_stats #}
+    {% endif %}{# no_teams_assigned #}
+
+</div><!-- max-w-7xl -->
+
+<script>
+(function () {
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = isDark ? '#d1d5db' : '#374151';
+    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
+    Chart.defaults.color = textColor;
+    Chart.defaults.onHover = (evt, elements) => {
+        if (evt.native && evt.native.target) {
+            evt.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+        }
+    };
+    Chart.defaults.plugins.legend.onHover = (evt) => {
+        if (evt.native && evt.native.target) evt.native.target.style.cursor = 'pointer';
+    };
+    Chart.defaults.plugins.legend.onLeave = (evt) => {
+        if (evt.native && evt.native.target) evt.native.target.style.cursor = 'default';
+    };
+
+    const myStats    = {{ my_stats_json|safe }};
+    const rivalStats = {{ rival_stats_json|safe }};
+
+    if (!rivalStats || rivalStats.no_data) { return; }
+
+    // ── Donuts helpers ─────────────────────────────────────────────
+    function buildWonLostBars(canvasId, myClean, myDirty, myLost, rivalClean, rivalDirty, rivalLost) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Ganados', 'Gana Sucio', 'Perdidos'],
+                datasets: [
+                    {
+                        label: myStats.team_name,
+                        data: [myClean, myDirty, myLost],
+                        backgroundColor: 'rgba(59,130,246,0.7)',
+                        borderColor: '#3B82F6',
+                        borderWidth: 1,
+                    },
+                    {
+                        label: rivalStats.team_name,
+                        data: [rivalClean, rivalDirty, rivalLost],
+                        backgroundColor: 'rgba(239,68,68,0.7)',
+                        borderColor: '#EF4444',
+                        borderWidth: 1,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { padding: 16, font: { size: 12 } } },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'end',
+                        color: textColor,
+                        font: { weight: 'bold', size: 12 },
+                        formatter: (value) => value === 0 ? null : value,
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: gridColor }, grace: '20%' },
+                    x: { grid: { color: gridColor } }
+                }
+            },
+            plugins: [ChartDataLabels]
+        });
+    }
+
+    buildWonLostBars('linesChart',  myStats.lineouts.won_clean, myStats.lineouts.won_dirty, myStats.lineouts.lost, rivalStats.lineouts.won_clean, rivalStats.lineouts.won_dirty, rivalStats.lineouts.lost);
+    buildWonLostBars('scrumsChart', myStats.scrums.won_clean,   myStats.scrums.won_dirty,   myStats.scrums.lost,   rivalStats.scrums.won_clean,   rivalStats.scrums.won_dirty,   rivalStats.scrums.lost);
+
+    // ── Gráfico de barras comparativo ──────────────────────────────
+    function buildComparativeBars(canvasId, myData, rivalData, keyField) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        // Unificar labels
+        const ZONA_ORDER = ['ROJA', 'NARANJA', 'AMARILLA', 'VERDE'];
+        let allKeys = [...new Set([
+            ...myData.map(d => d[keyField]),
+            ...rivalData.map(d => d[keyField])
+        ])];
+        if (keyField === 'zona_inicio') {
+            allKeys.sort((a, b) => {
+                const ia = ZONA_ORDER.indexOf(a.toUpperCase());
+                const ib = ZONA_ORDER.indexOf(b.toUpperCase());
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+            });
+        }
+
+        const myMap    = Object.fromEntries(myData.map(d => [d[keyField], d.count]));
+        const rivalMap = Object.fromEntries(rivalData.map(d => [d[keyField], d.count]));
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: allKeys,
+                datasets: [
+                    {
+                        label: myStats.team_name,
+                        data: allKeys.map(k => myMap[k] || 0),
+                        backgroundColor: 'rgba(59,130,246,0.7)',
+                    },
+                    {
+                        label: rivalStats.team_name,
+                        data: allKeys.map(k => rivalMap[k] || 0),
+                        backgroundColor: 'rgba(239,68,68,0.7)',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        color: textColor,
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (value) => value === 0 ? null : value,
+                    }
+                },
+                scales: {
+                    x: { grid: { color: gridColor } },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: gridColor },
+                        ticks: { stepSize: 1 }
+                    }
+                }
+            },
+            plugins: [ChartDataLabels]
+        });
+    }
+
+    buildComparativeBars('penZonaChart',      myStats.penales_by_zone,       rivalStats.penales_by_zone,       'zona_inicio');
+    buildComparativeBars('penSituacionChart', myStats.penales_by_situacion,  rivalStats.penales_by_situacion,  'situacion_penal');
+    buildComparativeBars('penTipoChart',      myStats.penales_by_tipo,        rivalStats.penales_by_tipo,       'tipo');
+
+    window.switchRcPen = function(type) {
+        const map = {
+            cantidad:  { btn: 'rcBtnCantidad',  title: 'Penales Concedidos' },
+            zona:      { btn: 'rcBtnZona',      title: 'Penales Concedidos por Zona' },
+            situacion: { btn: 'rcBtnSituacion', title: 'Penales Concedidos por Situaci\u00f3n' },
+            tipo:      { btn: 'rcBtnTipo',      title: 'Penales Concedidos por Tipo' },
+        };
+        const chartMap = {
+            zona:      'penZonaChart',
+            situacion: 'penSituacionChart',
+            tipo:      'penTipoChart',
+        };
+        const activeClass   = ['bg-blue-600', 'text-white', 'border-blue-600'];
+        const inactiveClass = ['bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300', 'border-gray-300', 'dark:border-gray-600'];
+
+        Object.keys(map).forEach(k => {
+            const b = document.getElementById(map[k].btn);
+            if (k === type) {
+                b.classList.add(...activeClass); b.classList.remove(...inactiveClass);
+            } else {
+                b.classList.add(...inactiveClass); b.classList.remove(...activeClass);
+            }
+        });
+
+        const cantidadPanel = document.getElementById('rcPenCantidadPanel');
+        const chartPanel    = document.getElementById('rcPenChartPanel');
+        if (type === 'cantidad') {
+            cantidadPanel.style.display = '';
+            chartPanel.style.display    = 'none';
+        } else {
+            cantidadPanel.style.display = 'none';
+            chartPanel.style.display    = '';
+            Object.keys(chartMap).forEach(k => {
+                document.getElementById(chartMap[k]).style.display = k === type ? '' : 'none';
+            });
+        }
+        document.getElementById('rcPenTitle').textContent = map[type].title;
+    };
+
+    // ── Tab switcher ────────────────────────────────────────────────
+    window.switchTab = function(tab) {
+        const tabs = ['comparacion', 'rival'];
+        const activeClass   = ['bg-blue-600', 'text-white', 'border-blue-600'];
+        const inactiveClass = ['bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300', 'border-gray-300', 'dark:border-gray-600'];
+        tabs.forEach(t => {
+            const panel = document.getElementById('tab-' + t);
+            const btn   = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+            if (!panel || !btn) return;
+            if (t === tab) {
+                panel.style.display = '';
+                btn.classList.add(...activeClass); btn.classList.remove(...inactiveClass);
+            } else {
+                panel.style.display = 'none';
+                btn.classList.add(...inactiveClass); btn.classList.remove(...activeClass);
+            }
+        });
+    };
+
+    // ── Datos del rival (tab 2) ─────────────────────────────────────
+    const rivalDetail = {{ rival_detail_json|default:'{}'|safe }};
+    if (rivalDetail && !rivalDetail.no_data) {
+
+        // Helper: barra simple roja
+        function buildRedBar(canvasId, data, keyField) {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx || !data || data.length === 0) return;
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d[keyField]),
+                    datasets: [{
+                        label: rivalStats.team_name,
+                        data: data.map(d => d.count),
+                        backgroundColor: 'rgba(239,68,68,0.7)',
+                        borderColor: '#EF4444',
+                        borderWidth: 1,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            anchor: 'end', align: 'end',
+                            color: textColor, font: { weight: 'bold', size: 12 },
+                            formatter: v => v === 0 ? null : v,
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: gridColor }, grace: '20%' },
+                        x: { grid: { color: gridColor } }
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+        }
+
+        buildRedBar('linesSetChart',   rivalDetail.lines_by_set,       'set');
+        buildRedBar('linesTiroChart',  rivalDetail.lines_by_tiro,      'tiro');
+        buildRedBar('linesSigueChart', rivalDetail.lines_by_sigue_con, 'sigue_con');
+
+        // Switcher de lines detail
+        window.switchLinesDetail = function(type) {
+            const map = {
+                set:      { canvas: 'linesSetChart',   btn: 'ldbBtnSet',      title: 'Lines Ganados por Set' },
+                tiro:     { canvas: 'linesTiroChart',  btn: 'ldbBtnTiro',     title: 'Lines Ganados por Tiro' },
+                sigue_con:{ canvas: 'linesSigueChart', btn: 'ldbBtnSigueCon', title: 'Lines Ganados — Sigue Con' },
+            };
+            const activeClass   = ['bg-red-600', 'text-white', 'border-red-600'];
+            const inactiveClass = ['bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300', 'border-gray-300', 'dark:border-gray-600'];
+            Object.keys(map).forEach(k => {
+                const c = document.getElementById(map[k].canvas);
+                const b = document.getElementById(map[k].btn);
+                if (k === type) {
+                    c.style.display = ''; b.classList.add(...activeClass); b.classList.remove(...inactiveClass);
+                } else {
+                    c.style.display = 'none'; b.classList.add(...inactiveClass); b.classList.remove(...activeClass);
+                }
+            });
+            document.getElementById('linesDetailTitle').textContent = map[type].title;
+        };
+
+        // Gráfico de fases: barras por valor de fases (agregado)
+        if (rivalDetail.phases_chart && rivalDetail.phases_chart.length > 0) {
+            const phCtx = document.getElementById('phasesChart');
+            if (phCtx) {
+                new Chart(phCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: rivalDetail.phases_chart.map(d => d.fases + ' fases'),
+                        datasets: [{
+                            label: 'Posesiones',
+                            data: rivalDetail.phases_chart.map(d => d.count),
+                            backgroundColor: 'rgba(139,92,246,0.7)',
+                            borderColor: '#7c3aed',
+                            borderWidth: 1,
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'end',
+                                color: textColor, font: { weight: 'bold', size: 12 },
+                                formatter: v => v === 0 ? null : v,
+                            }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: gridColor }, grace: '20%' },
+                            x: { grid: { color: gridColor } }
+                        }
+                    },
+                    plugins: [ChartDataLabels]
+                });
+            }
+        }
+
+        // Gráfico de eficiencia (agregado)
+        if (rivalDetail.efficiency_aggregated) {
+            const efCtx = document.getElementById('efficiencyChart');
+            if (efCtx) {
+                const eff = rivalDetail.efficiency_aggregated;
+                new Chart(efCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Puntos', 'Perdida'],
+                        datasets: [{
+                            label: 'Eficiencia',
+                            data: [eff.pct_puntos, eff.pct_perdida],
+                            backgroundColor: ['rgba(16,185,129,0.7)', 'rgba(239,68,68,0.7)'],
+                            borderColor: ['#10B981', '#EF4444'],
+                            borderWidth: 1,
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'end',
+                                color: textColor, font: { size: 12 },
+                                formatter: v => v === 0 ? null : v + '%',
+                            }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' }, grid: { color: gridColor }, grace: '20%' },
+                            x: { grid: { color: gridColor } }
+                        }
+                    },
+                    plugins: [ChartDataLabels]
+                });
+            }
+        }
+    }
+
+})();
+</script>
+{% endblock %}

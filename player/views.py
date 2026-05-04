@@ -41,6 +41,8 @@ from django.urls import reverse_lazy
 from django.views.generic import FormView, DetailView, ListView, View, UpdateView
 from django.core.files.uploadedfile import UploadedFile
 
+from django.utils import timezone
+
 from .forms import AnalysisUploadForm, MatchUpdateForm
 from .models import Match, Play, Tournament, Country, CoachTournamentTeamParticipation, Team, SelectionPreset
 # from django.views.decorators.cache import cache_page
@@ -731,7 +733,10 @@ class MatchListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Match.objects.all().select_related('tournament', 'tournament__country')
+        # Solo mostrar partidos con video cargado; los del fixture sin video se gestionan en /fixture/
+        queryset = Match.objects.filter(
+            video_id__isnull=False
+        ).exclude(video_id='').select_related('tournament', 'tournament__country')
 
         if user.is_authenticated and not user.is_staff:
             participations = CoachTournamentTeamParticipation.objects.filter(user=user, active=True).select_related('team')
@@ -885,6 +890,46 @@ class MatchListView(LoginRequiredMixin, ListView):
             (not user.is_staff and context['current_filter'] != 'own')
         ])
         context['has_filters'] = has_filters
+
+        # Próximo partido para entrenadores (no-admin)
+        context['next_match'] = None
+        context['next_match_my_team'] = None
+        context['next_match_rival'] = None
+        if not user.is_staff:
+            teams_upper = set()
+            profile_team = getattr(getattr(user, 'profile', None), 'team', None)
+            if profile_team:
+                if profile_team.name:
+                    teams_upper.add(profile_team.name.strip().upper())
+                if profile_team.alias:
+                    teams_upper.add(profile_team.alias.strip().upper())
+            for p in CoachTournamentTeamParticipation.objects.filter(user=user, active=True).select_related('team'):
+                if p.team:
+                    if p.team.name:
+                        teams_upper.add(p.team.name.strip().upper())
+                    if p.team.alias:
+                        teams_upper.add(p.team.alias.strip().upper())
+            if teams_upper:
+                today = timezone.localdate()
+                nm = (
+                    Match.objects
+                    .filter(
+                        Q(home_team__in=teams_upper) | Q(away_team__in=teams_upper),
+                        match_date__gte=today,
+                    )
+                    .order_by('match_date', 'match_time')
+                    .select_related('tournament')
+                    .first()
+                )
+                if nm:
+                    context['next_match'] = nm
+                    if nm.home_team in teams_upper:
+                        context['next_match_my_team'] = nm.home_team
+                        context['next_match_rival'] = nm.away_team
+                    else:
+                        context['next_match_my_team'] = nm.away_team
+                        context['next_match_rival'] = nm.home_team
+
         return context
     
 class MatchPlaysDataView(LoginRequiredMixin, View):

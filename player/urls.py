@@ -30,6 +30,7 @@ from .views_dashboard import (
     TeamStatsView,
     MatchStatsView,
     DashboardAPIView,
+    RivalCompareView,
 )
 app_name = 'player'
 
@@ -85,8 +86,9 @@ urlpatterns = [
     path('dashboard/', DashboardIndexView.as_view(), name='dashboard'),
     path('dashboard/team/', TeamStatsView.as_view(), name='dashboard_team'),
     path('dashboard/match/<int:pk>/', MatchStatsView.as_view(), name='dashboard_match'),
-    
-    # API endpoints para datos dinÃ¡micos del dashboard
+    path('dashboard/rival-compare/', RivalCompareView.as_view(), name='dashboard_rival_compare'),
+
+    # API endpoints para datos dinámicos del dashboard
     path('dashboard/api/<str:action>/', DashboardAPIView.as_view(), name='dashboard_api'),
 
     # ===== FIXTURE / CALENDARIO =====

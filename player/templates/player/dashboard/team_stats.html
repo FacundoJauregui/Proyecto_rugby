@@ -176,6 +176,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const textColor = isDarkMode ? '#E5E7EB' : '#374151';
     const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
     Chart.defaults.color = textColor;
+    Chart.defaults.onHover = (evt, elements) => {
+        if (evt.native && evt.native.target) {
+            evt.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+        }
+    };
+    Chart.defaults.plugins.legend.onHover = (evt) => {
+        if (evt.native && evt.native.target) evt.native.target.style.cursor = 'pointer';
+    };
+    Chart.defaults.plugins.legend.onLeave = (evt) => {
+        if (evt.native && evt.native.target) evt.native.target.style.cursor = 'default';
+    };
     
     const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'];
     

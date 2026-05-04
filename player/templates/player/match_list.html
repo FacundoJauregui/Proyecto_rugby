@@ -16,6 +16,45 @@
 </div>
 
 {# Layout principal: Lista de partidos + Sidebar de filtros #}
+
+{% if next_match %}
+<div class="mb-5 flex items-center gap-4 rounded-xl border border-blue-400/50 bg-blue-600 shadow px-5 py-4 flex-wrap">
+    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+    </div>
+    <div class="flex-1 min-w-0">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-blue-100 mb-0.5">Próximo partido</p>
+        <p class="text-base font-bold text-white">
+            {{ next_match_my_team }} <span class="font-normal text-blue-200">vs</span> {{ next_match_rival }}
+        </p>
+        <p class="text-sm text-blue-100 mt-0.5 flex flex-wrap gap-x-3">
+            {% if next_match.match_date %}
+            <span>{{ next_match.match_date|date:"l d/m/Y" }}{% if next_match.match_time %} · {{ next_match.match_time|time:"H:i" }}{% endif %}</span>
+            {% endif %}
+            {% if next_match.tournament %}
+            <span class="text-white font-medium">
+                {% if next_match.tournament.short_name %}{{ next_match.tournament.short_name }}{% else %}{{ next_match.tournament.name }}{% endif %}
+                {% if next_match.tournament.season %} {{ next_match.tournament.season }}{% endif %}
+            </span>
+            {% endif %}
+            {% if next_match.division %}<span class="text-blue-200">{{ next_match.get_division_display }}</span>{% endif %}
+        </p>
+    </div>
+    <a href="{% url 'player:match_list' %}?filter=rivals&q={{ next_match_rival|urlencode }}"
+       class="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-white/60 hover:border-white hover:bg-white/20 text-white text-sm font-semibold transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+        </svg>
+        Ver partidos de {{ next_match_rival }}
+    </a>
+    {% if next_match.match_notes %}
+    <p class="w-full text-xs text-blue-200 italic -mt-1 pl-14">{{ next_match.match_notes }}</p>
+    {% endif %}
+</div>
+{% endif %}
+
 <div class="flex flex-col lg:flex-row gap-6">
   {# Columna principal: Lista de partidos (70% del ancho en desktop) #}
   <div class="w-full" style="flex: 0 0 70%; max-width: 70%;">

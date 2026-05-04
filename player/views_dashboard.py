@@ -16,7 +16,9 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
+from django.db.models import Q
 from django.http import JsonResponse
+from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import TemplateView, View
@@ -55,6 +57,52 @@ class DashboardIndexView(DashboardAccessMixin, TemplateView):
     """Vista principal del dashboard."""
 
     template_name = 'player/dashboard/index.html'
+
+    def _get_next_match_context(self, teams_to_check, effective_team):
+        """Busca el próximo partido para los equipos del entrenador y videos del rival."""
+        if not teams_to_check:
+            return {'next_match': None}
+
+        today = timezone.localdate()
+        teams_upper = set(t.strip().upper() for t in teams_to_check)
+
+        # Incluir alias de cada equipo para que la búsqueda funcione
+        # independientemente de como quedó guardado el nombre en Match
+        alias_filter = Q()
+        for t in teams_to_check:
+            alias_filter |= Q(name__iexact=t)
+        for obj in Team.objects.filter(alias_filter).exclude(alias__isnull=True).exclude(alias=''):
+            teams_upper.add(obj.alias.strip().upper())
+
+        next_match = (
+            Match.objects
+            .filter(
+                Q(home_team__in=teams_upper) | Q(away_team__in=teams_upper),
+                match_date__gte=today,
+            )
+            .order_by('match_date', 'match_time')
+            .select_related('tournament')
+            .first()
+        )
+
+        if not next_match:
+            return {'next_match': None}
+
+        # Determinar cuál es nuestro equipo y cuál es el rival
+        if next_match.home_team in teams_upper:
+            my_team = next_match.home_team
+            rival = next_match.away_team
+        else:
+            my_team = next_match.away_team
+            rival = next_match.home_team
+
+        # Videos del rival: ya no se muestran en el dashboard (pendiente vista de estadísticas rivales)
+
+        return {
+            'next_match': next_match,
+            'next_match_my_team': my_team,
+            'next_match_rival': rival,
+        }
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -122,6 +170,10 @@ class DashboardIndexView(DashboardAccessMixin, TemplateView):
         context['trend_data_json'] = json.dumps(context['trend_data'])
         context['plays_distribution_json'] = json.dumps(context['plays_distribution'])
         context['zone_data_json'] = json.dumps(context['zone_data'])
+
+        # Próximo partido y videos del rival
+        teams_to_check = [effective_team] if effective_team else user_teams
+        context.update(self._get_next_match_context(teams_to_check, effective_team))
 
         return context
 
@@ -405,6 +457,114 @@ class CompareMatchesView(DashboardAccessMixin, TemplateView):
         context['selected_team'] = selected_team
 
         return context
+
+
+class RivalCompareView(DashboardAccessMixin, TemplateView):
+    """Comparación estadística entre el equipo del usuario y el próximo rival."""
+
+    template_name = 'player/dashboard/rival_compare.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        selected_seasons = self.request.GET.getlist('season', [])
+        selected_tournaments = [t for t in self.request.GET.getlist('tournament', []) if t]
+        rival_tournaments = [t for t in self.request.GET.getlist('rival_tournament', []) if t]
+        selected_team = self.request.GET.get('team')
+        rival_override = self.request.GET.get('rival')  # permite elegir rival manualmente
+
+        user_teams = self.get_user_teams()
+        is_admin = self.request.user.is_staff
+        effective_team = selected_team or (None if is_admin else (user_teams[0] if user_teams else None))
+
+        context['user_teams'] = user_teams
+        context['selected_team'] = effective_team
+        context['is_admin'] = is_admin
+        context['selected_seasons'] = selected_seasons
+        context['selected_tournaments'] = selected_tournaments
+        context['rival_tournaments'] = rival_tournaments
+
+        if not effective_team and not is_admin:
+            context['no_teams_assigned'] = True
+            return context
+
+        stats_service = StatsService(
+            user=self.request.user,
+            team_name=effective_team,
+            seasons=selected_seasons if selected_seasons else None,
+            tournaments=selected_tournaments if selected_tournaments else None,
+        )
+
+        context['available_seasons'] = stats_service.get_available_seasons()
+        context['available_tournaments'] = stats_service.get_available_tournaments()
+
+        # Determinar rival: override manual o próximo partido
+        rival_name = rival_override
+        next_match = None
+        if not rival_name:
+            today = timezone.localdate()
+            teams_upper = set((effective_team or '').strip().upper() for _ in [1])
+            if effective_team:
+                for obj in Team.objects.filter(name__iexact=effective_team).exclude(alias__isnull=True).exclude(alias=''):
+                    teams_upper.add(obj.alias.strip().upper())
+            if teams_upper:
+                nq = Q()
+                for t in teams_upper:
+                    nq |= Q(home_team__iexact=t) | Q(away_team__iexact=t)
+                next_match = (
+                    Match.objects.filter(nq, match_date__gte=today)
+                    .order_by('match_date', 'match_time')
+                    .select_related('tournament')
+                    .first()
+                )
+            if next_match:
+                if next_match.home_team.upper() in teams_upper:
+                    rival_name = next_match.away_team
+                else:
+                    rival_name = next_match.home_team
+
+        context['next_match'] = next_match
+        context['rival_name'] = rival_name
+
+        # Todos los rivales conocidos (para selector manual)
+        all_rivals = _get_known_rivals(effective_team)
+        context['all_rivals'] = all_rivals
+
+        # Torneos disponibles del rival
+        rival_available_tournaments = stats_service.get_rival_available_tournaments(rival_name) if rival_name else []
+        context['rival_available_tournaments'] = rival_available_tournaments
+
+        # Estadísticas de ambos equipos
+        my_stats = stats_service.get_my_team_comparison_stats()
+        rival_stats = stats_service.get_rival_aggregate_stats(rival_name, tournament_names=rival_tournaments if rival_tournaments else None) if rival_name else {'no_data': True}
+        rival_detail = stats_service.get_rival_detail_stats(rival_name, tournament_names=rival_tournaments if rival_tournaments else None) if rival_name else {'no_data': True}
+
+        context['my_stats'] = my_stats
+        context['rival_stats'] = rival_stats
+        context['rival_detail'] = rival_detail
+        context['my_stats_json'] = json.dumps(my_stats, default=str)
+        context['rival_stats_json'] = json.dumps(rival_stats, default=str)
+        context['rival_detail_json'] = json.dumps(rival_detail, default=str)
+
+        return context
+
+
+def _get_known_rivals(team_name: str):
+    """Retorna la lista de equipos únicos que han jugado contra team_name."""
+    if not team_name:
+        return []
+    upper = team_name.strip().upper()
+    rivals = set()
+    for m in Match.objects.filter(
+        Q(home_team__iexact=upper) | Q(away_team__iexact=upper)
+    ).values('home_team', 'away_team'):
+        home = (m['home_team'] or '').strip().upper()
+        away = (m['away_team'] or '').strip().upper()
+        if home != upper:
+            rivals.add(home.title())
+        if away != upper:
+            rivals.add(away.title())
+    return sorted(rivals)
 
 
 # --- API Endpoints para datos dinámicos ---
