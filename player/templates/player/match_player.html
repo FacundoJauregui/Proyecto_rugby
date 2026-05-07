@@ -38,24 +38,76 @@
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
         <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Filtros</h2>
 
-        <form method="GET" action="" class="space-y-3">
-          <select name="equipo" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option value="" {% if not filter_params.equipo %}selected{% endif %}>-- Por Equipo --</option>
-            {% for option in equipo_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.equipo %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
-          </select>
-          <!-- Reemplazo: Situación -> Jugada -->
-          <select name="jugada" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option value="">-- Jugada --</option>
-            {% for option in jugada_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.jugada %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
-          </select>
-          <select name="zona_inicio" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option value="">-- Zona Inicio --</option>
-            {% for option in zona_inicio_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.zona_inicio %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
-          </select>
-          <select name="zona_fin" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option value="">-- Zona Fin --</option>
-            {% for option in zona_fin_options %}{% if option %}<option value="{{ option }}" {% if option == filter_params.zona_fin %}selected{% endif %}>{{ option }}</option>{% endif %}{% endfor %}
-          </select>
+        <form method="GET" action="" class="space-y-3" id="filter-form">
+
+          <!-- Equipo (multi-select) -->
+          <div class="relative dd-wrapper">
+            <button type="button" onclick="toggleDD('equipo', event)"
+              class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg w-full p-2.5 text-left flex items-center justify-between dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              <span id="dd-equipo-label" data-placeholder="-- Por Equipo --">{% if filter_params.equipo %}{% if filter_params.equipo|length == 1 %}{{ filter_params.equipo.0 }}{% else %}{{ filter_params.equipo|length }} seleccionados{% endif %}{% else %}-- Por Equipo --{% endif %}</span>
+              <svg class="w-4 h-4 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="dd-equipo-menu" class="dd-menu hidden absolute z-30 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+              {% for option in equipo_options %}{% if option %}
+              <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-white">
+                <input type="checkbox" name="equipo" value="{{ option }}" {% if option in filter_params.equipo %}checked{% endif %} onchange="updateDDLabel('equipo')" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                {{ option }}
+              </label>
+              {% endif %}{% endfor %}
+            </div>
+          </div>
+
+          <!-- Jugada (multi-select) -->
+          <div class="relative dd-wrapper">
+            <button type="button" onclick="toggleDD('jugada', event)"
+              class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg w-full p-2.5 text-left flex items-center justify-between dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              <span id="dd-jugada-label" data-placeholder="-- Jugada --">{% if filter_params.jugada %}{% if filter_params.jugada|length == 1 %}{{ filter_params.jugada.0 }}{% else %}{{ filter_params.jugada|length }} seleccionados{% endif %}{% else %}-- Jugada --{% endif %}</span>
+              <svg class="w-4 h-4 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="dd-jugada-menu" class="dd-menu hidden absolute z-30 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+              {% for option in jugada_options %}{% if option %}
+              <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-white">
+                <input type="checkbox" name="jugada" value="{{ option }}" {% if option in filter_params.jugada %}checked{% endif %} onchange="updateDDLabel('jugada')" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                {{ option }}
+              </label>
+              {% endif %}{% endfor %}
+            </div>
+          </div>
+
+          <!-- Zona Inicio (multi-select) -->
+          <div class="relative dd-wrapper">
+            <button type="button" onclick="toggleDD('zona_inicio', event)"
+              class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg w-full p-2.5 text-left flex items-center justify-between dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              <span id="dd-zona_inicio-label" data-placeholder="-- Zona Inicio --">{% if filter_params.zona_inicio %}{% if filter_params.zona_inicio|length == 1 %}{{ filter_params.zona_inicio.0 }}{% else %}{{ filter_params.zona_inicio|length }} seleccionados{% endif %}{% else %}-- Zona Inicio --{% endif %}</span>
+              <svg class="w-4 h-4 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="dd-zona_inicio-menu" class="dd-menu hidden absolute z-30 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+              {% for option in zona_inicio_options %}{% if option %}
+              <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-white">
+                <input type="checkbox" name="zona_inicio" value="{{ option }}" {% if option in filter_params.zona_inicio %}checked{% endif %} onchange="updateDDLabel('zona_inicio')" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                {{ option }}
+              </label>
+              {% endif %}{% endfor %}
+            </div>
+          </div>
+
+          <!-- Zona Fin (multi-select) -->
+          <div class="relative dd-wrapper">
+            <button type="button" onclick="toggleDD('zona_fin', event)"
+              class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg w-full p-2.5 text-left flex items-center justify-between dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              <span id="dd-zona_fin-label" data-placeholder="-- Zona Fin --">{% if filter_params.zona_fin %}{% if filter_params.zona_fin|length == 1 %}{{ filter_params.zona_fin.0 }}{% else %}{{ filter_params.zona_fin|length }} seleccionados{% endif %}{% else %}-- Zona Fin --{% endif %}</span>
+              <svg class="w-4 h-4 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="dd-zona_fin-menu" class="dd-menu hidden absolute z-30 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+              {% for option in zona_fin_options %}{% if option %}
+              <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-sm text-gray-900 dark:text-white">
+                <input type="checkbox" name="zona_fin" value="{{ option }}" {% if option in filter_params.zona_fin %}checked{% endif %} onchange="updateDDLabel('zona_fin')" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                {{ option }}
+              </label>
+              {% endif %}{% endfor %}
+            </div>
+          </div>
+
           <div class="flex space-x-2">
             <button type="submit" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5">Filtrar</button>
             <a href="{% url 'player:play_match' pk=match.pk %}" class="w-full text-center text-gray-900 bg-white border border-gray-300 hover:bg-gray-100 focus:ring-4 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700">Limpiar</a>
@@ -80,10 +132,19 @@
         </div>
       </div>
 
-      <!-- INICIO: Presets de selección (movido a la columna izquierda) -->
+      <!-- INICIO: Presets de selección -->
       <div id="presets-panel" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-        <h2 class="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Presets de selección</h2>
-        <div class="space-y-2">
+        <!-- Cabecera con tabs -->
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Presets de selección</h2>
+          <div class="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 text-xs font-medium">
+            <button id="preset-tab-manage" onclick="switchPresetTab('manage')" class="px-3 py-1.5 bg-blue-700 text-white transition-colors">Gestionar</button>
+            <button id="preset-tab-import" onclick="switchPresetTab('import')" class="px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">Importar CSV</button>
+          </div>
+        </div>
+
+        <!-- Panel: Gestionar preset -->
+        <div id="preset-pane-manage" class="space-y-2">
           <select id="preset-select" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm">
             <option value="" selected>Elegí un preset…</option>
           </select>
@@ -91,19 +152,36 @@
             <button id="preset-load-btn" class="flex-1 text-white bg-blue-700 hover:bg-blue-800 rounded-lg text-sm px-3 py-2 disabled:opacity-50" disabled>Cargar</button>
             <button id="preset-delete-btn" class="text-white bg-red-600 hover:bg-red-700 rounded-lg text-sm px-3 py-2 disabled:opacity-50" disabled>Eliminar</button>
           </div>
-          <button id="preset-save-btn" class="w-full text-gray-900 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm px-3 py-2">Guardar selección como…</button>
-          <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
-            <form method="post" action="{% url 'player:match_preset_upload_csv' pk=match.pk %}" enctype="multipart/form-data" class="space-y-2">
-              {% csrf_token %}
-              <input type="text" name="csv_preset_name" placeholder="Nombre del preset (opcional)" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm" />
-              <input type="file" name="csv_preset_file" accept=".csv" class="w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600" required />
-              <button type="submit" class="w-full text-white bg-green-700 hover:bg-green-800 focus:ring-4 font-medium rounded-lg text-sm px-3 py-2">Importar CSV como preset</button>
-              <p class="text-xs text-gray-500 dark:text-gray-400">Usá el CSV exportado de jugadas. Si incluye columna ID, se usarán esos IDs; si no, se intenta emparejar por tiempos y jugada/equipo.</p>
-            </form>
-          </div>
+          <button id="preset-save-btn" class="w-full text-gray-900 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:text-white dark:hover:bg-gray-500 rounded-lg text-sm px-3 py-2">Guardar selección como…</button>
+        </div>
+
+        <!-- Panel: Importar CSV -->
+        <div id="preset-pane-import" class="hidden">
+          <form method="post" action="{% url 'player:match_preset_upload_csv' pk=match.pk %}" enctype="multipart/form-data" class="space-y-2">
+            {% csrf_token %}
+            <input type="text" name="csv_preset_name" placeholder="Nombre del preset (opcional)" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm" />
+            <input type="file" name="csv_preset_file" accept=".csv" class="w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600" required />
+            <button type="submit" class="w-full text-white bg-green-700 hover:bg-green-800 focus:ring-4 font-medium rounded-lg text-sm px-3 py-2">Importar CSV como preset</button>
+            <p class="text-xs text-gray-500 dark:text-gray-400">Usá el CSV exportado de jugadas. Si incluye columna ID, se usarán esos IDs; si no, se intenta emparejar por tiempos y jugada/equipo.</p>
+          </form>
         </div>
       </div>
       <!-- FIN: Presets de selección -->
+
+      <script>
+        function switchPresetTab(tab) {
+          const panes  = { manage: document.getElementById('preset-pane-manage'),  import: document.getElementById('preset-pane-import') };
+          const btns   = { manage: document.getElementById('preset-tab-manage'),   import: document.getElementById('preset-tab-import')  };
+          const active   = ['bg-blue-700','text-white'];
+          const inactive = ['bg-white','dark:bg-gray-700','text-gray-700','dark:text-gray-300','hover:bg-gray-100','dark:hover:bg-gray-600'];
+          ['manage','import'].forEach(t => {
+            const isActive = t === tab;
+            panes[t].classList.toggle('hidden', !isActive);
+            active.forEach(c   => btns[t].classList.toggle(c, isActive));
+            inactive.forEach(c => btns[t].classList.toggle(c, !isActive));
+          });
+        }
+      </script>
 
       <!-- NUEVO: Cargar/Actualizar CSV (solo si no hay jugadas y el usuario está autorizado) -->
       {% if can_upload_csv_on_match %}
@@ -121,7 +199,7 @@
 
     <!-- Columna derecha: video (75%) -->
     <div class="video-container flex flex-col flex-1 lg:basis-3/4" style="min-width:0;">
-      <div id="player" data-video-id="{{ match.video_id }}" class="w-full h-[480px] bg-black rounded-lg"></div>
+      <div id="player" data-video-id="{{ match.video_id }}" data-match-id="{{ match.id }}" class="w-full h-[480px] bg-black rounded-lg"></div>
       <!-- Botones de navegación entre jugadas -->
       <div class="flex justify-center gap-4 mt-3">
         <button id="prev-play-btn" class="flex items-center justify-center gap-2 text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-base w-64 py-4 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
@@ -136,10 +214,45 @@
     </div>
   </div>
 
-  <!-- Grid inferior (50%/50%): DataTable a la izquierda -->
-  <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <!-- 50% izquierdo: Lista de Jugadas -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 overflow-x-auto">
+  <!-- PANEL INFERIOR TABULADO: Timeline / DataTable / Selección -->
+  <div class="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-md" id="bottom-panel">
+
+    <!-- Barra de tabs -->
+    <div class="flex items-center border-b border-gray-200 dark:border-gray-700 px-4 pt-3 gap-1">
+      <button id="btab-timeline" onclick="switchBottomTab('timeline')"
+        class="px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400 transition-colors">
+        Línea de tiempo
+      </button>
+      <button id="btab-table" onclick="switchBottomTab('table')"
+        class="px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+        Lista de Jugadas
+      </button>
+      <button id="btab-selection" onclick="switchBottomTab('selection')"
+        class="px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-2">
+        Selección actual
+        <span id="selected-count" class="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">0</span>
+      </button>
+    </div>
+
+    <!-- Pane: Línea de tiempo -->
+    <div id="bpane-timeline" class="p-4">
+      <div class="mb-3">
+        <span class="text-xs text-gray-500 dark:text-gray-400" id="timeline-status">Cargando…</span>
+      </div>
+      <div class="flex" id="timeline-wrapper">
+        <div id="timeline-labels" class="flex-shrink-0" style="width:210px; padding-top:22px;"></div>
+        <div class="flex-1 overflow-x-auto" id="timeline-scroll">
+          <div id="timeline-inner" style="position:relative; min-width:900px;">
+            <div id="timeline-ruler" style="height:22px; position:relative; border-bottom:1px solid #d1d5db; margin-bottom:0;"></div>
+            <div id="timeline-rows" style="position:relative;"></div>
+            <div id="timeline-cursor" style="position:absolute;top:0;bottom:0;width:6px;left:0;background:#ef4444;cursor:ew-resize;display:none;z-index:10;transform:translateX(-2px);"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pane: Lista de Jugadas (DataTable) -->
+    <div id="bpane-table" class="p-4 hidden overflow-x-auto">
       <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div class="flex items-center gap-2">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Lista de Jugadas</h2>
@@ -178,7 +291,6 @@
           </div>
         </div>
       </div>
-      <!-- Agrego clases para evitar colapso y habilitar scroll horizontal -->
       <table id="plays-table" class="min-w-full min-w-max whitespace-nowrap text-sm text-left text-gray-500 dark:text-gray-400 display nowrap" style="width:100%">
         <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
           <tr>
@@ -216,17 +328,34 @@
       </table>
     </div>
 
-    <!-- 50% derecho: Selección actual -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 min-h-[200px]">
-      <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Selección actual</h2>
-        <span id="selected-count" class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">0</span>
-      </div>
-      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Jugadas que marcaste (se usan para Reproducir Selección y para guardar Preset).</p>
-      <ul id="selected-plays-list" class="mt-3 divide-y divide-gray-200 dark:divide-gray-700"></ul>
+    <!-- Pane: Selección actual -->
+    <div id="bpane-selection" class="p-4 hidden min-h-[200px]">
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Jugadas que marcaste (se usan para Reproducir Selección y para guardar Preset).</p>
+      <ul id="selected-plays-list" class="divide-y divide-gray-200 dark:divide-gray-700"></ul>
     </div>
 
   </div>
+  <!-- FIN PANEL INFERIOR -->
+
+  <script>
+    function switchBottomTab(tab) {
+      const tabs  = ['timeline', 'table', 'selection'];
+      const active   = ['border-blue-600','text-blue-700','dark:text-blue-400','dark:border-blue-400'];
+      const inactive = ['border-transparent','text-gray-500','dark:text-gray-400','hover:text-gray-700','dark:hover:text-gray-200'];
+      tabs.forEach(t => {
+        const btn  = document.getElementById('btab-' + t);
+        const pane = document.getElementById('bpane-' + t);
+        const isActive = t === tab;
+        pane.classList.toggle('hidden', !isActive);
+        active.forEach(c   => btn.classList.toggle(c, isActive));
+        inactive.forEach(c => btn.classList.toggle(c, !isActive));
+      });
+      // Cuando se muestra la DataTable por primera vez, forzar redibujado para evitar columnas colapsadas
+      if (tab === 'table' && window._dtInstance) {
+        setTimeout(() => window._dtInstance.columns.adjust(), 10);
+      }
+    }
+  </script>
 
 </div>
 
@@ -498,6 +627,7 @@
           updateLengthLabel();
         }
       });
+      window._dtInstance = dt;
 
       // Toggle de columnas visibles (checkboxes -> DataTable columns)
       const columnToggleContainer = document.getElementById('column-toggle-container');
@@ -701,6 +831,37 @@
 
 <!-- FIX: Volver a agregar el script del reproductor de video -->
 <script src="{% static 'js/player.js' %}"></script>
+<script src="{% static 'js/timeline.js' %}"></script>
+<script>
+  // ── Multi-select checkboxes dropdown ──────────────────────────────────────
+  function toggleDD(name, evt) {
+    evt.stopPropagation();
+    var menu = document.getElementById('dd-' + name + '-menu');
+    document.querySelectorAll('.dd-menu').forEach(function(m) {
+      if (m !== menu) m.classList.add('hidden');
+    });
+    menu.classList.toggle('hidden');
+  }
+
+  function updateDDLabel(name) {
+    var checked = Array.from(document.querySelectorAll('input[name="' + name + '"]:checked'));
+    var label = document.getElementById('dd-' + name + '-label');
+    if (!label) return;
+    var placeholder = label.dataset.placeholder || '-- ' + name + ' --';
+    if (checked.length === 0) {
+      label.textContent = placeholder;
+    } else if (checked.length === 1) {
+      label.textContent = checked[0].value;
+    } else {
+      label.textContent = checked.length + ' seleccionados';
+    }
+  }
+
+  // Cerrar dropdowns al clickear fuera
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.dd-menu').forEach(function(m) { m.classList.add('hidden'); });
+  });
+</script>
 
 {% endblock %}
 

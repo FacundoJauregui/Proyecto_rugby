@@ -356,36 +356,55 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
             form.add_error('youtube_url', 'La URL de YouTube no es válida.')
             return self.form_invalid(form)
 
-        # NUEVO: Evitar duplicados por (home_team, away_team, match_date)
-        if Match.objects.filter(
+        # Verificar si ya existe un partido con esa combinación de equipos y fecha
+        existing_match = Match.objects.filter(
             home_team__iexact=home_team_name,
             away_team__iexact=away_team_name,
             match_date=match_date
-        ).exists():
-            messages.warning(self.request, "Ese partido ya se encuentra cargado.")
-            return self.render_to_response(self.get_context_data(form=form))
+        ).first()
+
+        if existing_match:
+            # Si ya tiene video o jugadas cargadas, no permitir sobreescribir
+            if existing_match.video_id or existing_match.plays.exists():
+                messages.warning(self.request, "Ese partido ya se encuentra cargado.")
+                return self.render_to_response(self.get_context_data(form=form))
+            # Si existe pero sin video ni jugadas (creado desde fixture), se completa
+            match = existing_match
+            fixture_match = True
+        else:
+            match = None
+            fixture_match = False
 
         match_pk = None
         with transaction.atomic():
-            match, created = Match.objects.get_or_create(
-                video_id=video_id,
-                defaults={
-                    'home_team': home_team_name,
-                    'away_team': away_team_name,
-                    'match_date': match_date,
-                    'tournament': tournament,
-                    'division': division,
-                }
-            )
-            match_pk = match.pk
-            if not created:
-                match.home_team = home_team_name
-                match.away_team = away_team_name
-                match.match_date = match_date
+            if fixture_match:
+                # Completar partido existente del fixture con el video
+                match.video_id = video_id
                 match.tournament = tournament
                 match.division = division
-                match.save()
-                match.plays.all().delete()
+                match.save(update_fields=['video_id', 'tournament', 'division'])
+            else:
+                # Partido totalmente nuevo
+                match, created = Match.objects.get_or_create(
+                    video_id=video_id,
+                    defaults={
+                        'home_team': home_team_name,
+                        'away_team': away_team_name,
+                        'match_date': match_date,
+                        'tournament': tournament,
+                        'division': division,
+                    }
+                )
+                if not created:
+                    # video_id ya existe con otros datos: actualizar
+                    match.home_team = home_team_name
+                    match.away_team = away_team_name
+                    match.match_date = match_date
+                    match.tournament = tournament
+                    match.division = division
+                    match.save()
+                    match.plays.all().delete()
+            match_pk = match.pk
 
             # Procesar CSV con validación de cabeceras (opcional)
             if csv_file:
@@ -457,6 +476,9 @@ class AnalysisUploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
                 except Exception as e:
                     messages.error(self.request, f"Error al procesar el archivo CSV: {e}")
                     return self.render_to_response(self.get_context_data(form=form))
+            else:
+                # Sin CSV: igual mostrar éxito para que aparezca el botón "Ir al partido"
+                messages.success(self.request, "Video del partido vinculado correctamente.")
 
         # En vez de redirigir, renderizamos la misma vista para mostrar el mensaje y opciones
         return self.render_to_response(self.get_context_data(form=form))
@@ -526,24 +548,24 @@ class MatchPlayerView(LoginRequiredMixin, DetailView):
 
             # Copiamos filtros actuales
             evento_filter = request.GET.get('evento', '')
-            equipo_filter = request.GET.get('equipo', '')
-            zona_inicio_filter = request.GET.get('zona_inicio', '')
-            zona_fin_filter = request.GET.get('zona_fin', '')
+            equipo_values = request.GET.getlist('equipo')
+            zona_inicio_values = request.GET.getlist('zona_inicio')
+            zona_fin_values = request.GET.getlist('zona_fin')
             inicia_filter = request.GET.get('inicia', '')
-            jugada_filter = request.GET.get('jugada', '')  # reemplaza a situacion en UI
+            jugada_values = request.GET.getlist('jugada')
 
             if evento_filter:
                 plays_list = plays_list.filter(evento=evento_filter)
-            if equipo_filter:
-                plays_list = plays_list.filter(equipo=equipo_filter)
-            if zona_inicio_filter:
-                plays_list = plays_list.filter(zona_inicio=zona_inicio_filter)
-            if zona_fin_filter:
-                plays_list = plays_list.filter(zona_fin=zona_fin_filter)
+            if equipo_values:
+                plays_list = plays_list.filter(equipo__in=equipo_values)
+            if zona_inicio_values:
+                plays_list = plays_list.filter(zona_inicio__in=zona_inicio_values)
+            if zona_fin_values:
+                plays_list = plays_list.filter(zona_fin__in=zona_fin_values)
             if inicia_filter:
                 plays_list = plays_list.filter(inicia=inicia_filter)
-            if jugada_filter:
-                plays_list = plays_list.filter(jugada=jugada_filter)
+            if jugada_values:
+                plays_list = plays_list.filter(jugada__in=jugada_values)
 
             # Si vienen ids seleccionados, filtramos por ellos y cambiamos el nombre del archivo
             ids_param = request.GET.get('ids')
@@ -619,30 +641,30 @@ class MatchPlayerView(LoginRequiredMixin, DetailView):
 
         filter_params = {}
         evento_filter = self.request.GET.get('evento', '')
-        equipo_filter = self.request.GET.get('equipo', '')
-        zona_inicio_filter = self.request.GET.get('zona_inicio', '')
-        zona_fin_filter = self.request.GET.get('zona_fin', '')
+        equipo_values = self.request.GET.getlist('equipo')
+        zona_inicio_values = self.request.GET.getlist('zona_inicio')
+        zona_fin_values = self.request.GET.getlist('zona_fin')
         inicia_filter = self.request.GET.get('inicia', '')
-        jugada_filter = self.request.GET.get('jugada', '')
+        jugada_values = self.request.GET.getlist('jugada')
 
         if evento_filter:
             plays_list = plays_list.filter(evento=evento_filter)
             filter_params['evento'] = evento_filter
-        if equipo_filter:
-            plays_list = plays_list.filter(equipo=equipo_filter)
-            filter_params['equipo'] = equipo_filter
-        if zona_inicio_filter:
-            plays_list = plays_list.filter(zona_inicio=zona_inicio_filter)
-            filter_params['zona_inicio'] = zona_inicio_filter
-        if zona_fin_filter:
-            plays_list = plays_list.filter(zona_fin=zona_fin_filter)
-            filter_params['zona_fin'] = zona_fin_filter
+        filter_params['equipo'] = equipo_values
+        if equipo_values:
+            plays_list = plays_list.filter(equipo__in=equipo_values)
+        filter_params['zona_inicio'] = zona_inicio_values
+        if zona_inicio_values:
+            plays_list = plays_list.filter(zona_inicio__in=zona_inicio_values)
+        filter_params['zona_fin'] = zona_fin_values
+        if zona_fin_values:
+            plays_list = plays_list.filter(zona_fin__in=zona_fin_values)
         if inicia_filter:
             plays_list = plays_list.filter(inicia=inicia_filter)
             filter_params['inicia'] = inicia_filter
-        if jugada_filter:
-            plays_list = plays_list.filter(jugada=jugada_filter)
-            filter_params['jugada'] = jugada_filter
+        filter_params['jugada'] = jugada_values
+        if jugada_values:
+            plays_list = plays_list.filter(jugada__in=jugada_values)
         
         paginator = Paginator(plays_list, 10)
         page_number = self.request.GET.get('page')

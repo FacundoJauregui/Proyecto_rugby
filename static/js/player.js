@@ -36,9 +36,15 @@
 }
 
     function onPlayerReady(event) {
+        window.player = event.target;
+        // Notificar a timeline.js que el player está listo
+        document.dispatchEvent(new CustomEvent('yt-player-ready'));
+        console.log('[player.js] onPlayerReady OK - window.player disponible');
         const playBtnEl = document.getElementById('play-selection-btn');
         if (playBtnEl) playBtnEl.disabled = false;
     }
+
+    // (el listener timeline-seek fue reemplazado: la lógica ahora está en el IIFE del template)
 
     function onPlayerStateChange(event) {
         if (event.data == YT.PlayerState.PLAYING) { checkTime(); } 
